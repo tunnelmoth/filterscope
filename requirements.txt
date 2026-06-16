@@ -1,0 +1,5 @@
+requests
+dnspython
+cryptography
+textual>=0.80  # for the TUI (tui.py)
+rich

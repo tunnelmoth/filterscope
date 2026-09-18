@@ -31,6 +31,7 @@ ChangesEnvironment=yes
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 Name: "addtopath"; Description: "Add the command-line tool to PATH (filterscope in any terminal)"; GroupDescription: "Command line:"; Flags: unchecked
 Name: "contextmenu"; Description: "Add 'Measure this network with filterscope' to the desktop right-click menu"; GroupDescription: "Shell integration:"
+Name: "tray"; Description: "Start filterscope in the system tray at login (auto-scan when the network changes)"; GroupDescription: "Shell integration:"; Flags: unchecked
 
 [Files]
 Source: "..\dist\filterscope-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -41,6 +42,7 @@ Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\filterscope"; Filename: "{app}\filterscope-gui.exe"
 Name: "{group}\filterscope (terminal)"; Filename: "{app}\filterscope.exe"
+Name: "{group}\filterscope (tray)"; Filename: "{app}\filterscope-gui.exe"; Parameters: "--tray"
 Name: "{group}\Uninstall filterscope"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\filterscope"; Filename: "{app}\filterscope-gui.exe"; Tasks: desktopicon
 
@@ -49,6 +51,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 Root: HKCU; Subkey: "Software\Classes\DesktopBackground\shell\filterscope"; ValueType: string; ValueName: ""; ValueData: "Measure this network with filterscope"; Tasks: contextmenu; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\DesktopBackground\shell\filterscope"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\filterscope-gui.exe,0"; Tasks: contextmenu
 Root: HKCU; Subkey: "Software\Classes\DesktopBackground\shell\filterscope\command"; ValueType: string; ValueName: ""; ValueData: """{app}\filterscope-gui.exe"" --autoscan"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "filterscope"; ValueData: """{app}\filterscope-gui.exe"" --tray"; Tasks: tray; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\filterscope-gui.exe"; Description: "Launch filterscope"; Flags: nowait postinstall skipifsilent

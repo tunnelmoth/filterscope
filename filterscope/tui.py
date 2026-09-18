@@ -97,6 +97,7 @@ class FilterScope(App):
         Binding("3", "tab('egress')", "Egress", show=False),
         Binding("4", "tab('history')", "History", show=False),
         Binding("5", "tab('help')", "Help", show=False),
+        Binding("d", "toggle_theme", "Dark/light"),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -144,6 +145,12 @@ class FilterScope(App):
         yield Footer()
 
     def on_mount(self):
+        try:
+            cfg = config.load()
+            if cfg.get("theme") == "light" or (cfg.get("theme", "system") == "system" and not sysinfo.system_dark()):
+                self.theme = "textual-light"
+        except Exception:
+            pass
         st = self.query_one("#sites", DataTable)
         st.add_column("category/site", key="cat")
         for c in ("DNS", "TLS/SNI", "block", "ECH", "ms"):
@@ -381,6 +388,12 @@ class FilterScope(App):
         self.rebuild_sites()
         self.log_write("[dim]scan started…[/]")
         self.run_worker(self._scan, thread=True, exclusive=True, group="scan")
+
+    def action_toggle_theme(self):
+        try:
+            self.theme = "textual-light" if self.theme != "textual-light" else "textual-dark"
+        except Exception:
+            self.dark = not getattr(self, "dark", True)
 
     def action_toggle_tor(self):
         self.opts.tor = not self.opts.tor

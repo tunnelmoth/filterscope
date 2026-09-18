@@ -24,6 +24,9 @@ DEFAULTS = {
     "workers": 20,
     "lang": "",              # "" = auto (system locale), "en" or "tr"
     "update_check": True,    # ask GitHub for a newer release (one request per start)
+    "theme": "system",       # system | light | dark
+    "high_contrast": False,
+    "font_scale": 100,       # percent
 }
 
 PROFILES = {

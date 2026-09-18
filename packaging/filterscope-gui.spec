@@ -14,7 +14,8 @@ for pkg in ("rich", "dns", "certifi", "PIL"):
     datas += d; binaries += b; hiddenimports += h
 datas += collect_data_files("filterscope", includes=["scripts/*.sh", "assets/*"])
 hiddenimports += ["filterscope.gui", "filterscope.htmlreport", "filterscope.history", "filterscope.analysis",
-                  "tkinter", "tkinter.ttk", "tkinter.filedialog", "tkinter.messagebox"]
+                  "tkinter", "tkinter.ttk", "tkinter.filedialog", "tkinter.messagebox",
+                  "filterscope.tray", "pystray", "pystray._win32", "pystray._darwin", "pystray._xorg", "pystray._gtk", "pystray._appindicator"]
 
 a = Analysis(
     [os.path.join(root, "packaging", "entry_gui.py")],
@@ -35,4 +36,4 @@ exe = EXE(
 )
 if sys.platform == "darwin":
     app = BUNDLE(exe, name="filterscope.app", icon=None, bundle_identifier="org.tunnelmoth.filterscope",
-                 info_plist={"CFBundleShortVersionString": "3.5.115", "NSHighResolutionCapable": True})
+                 info_plist={"CFBundleShortVersionString": "3.6.117", "NSHighResolutionCapable": True})

@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.6.117 — 2026-09-19 · **stable**
+
+### Dark mode & accessibility
+- Desktop window: **dark theme** (follows the OS, or forced), **high-contrast** palettes (light and
+  dark), **text size** 100–175 % — *View ▾* menu, persisted (`theme`, `high_contrast`, `font_scale`).
+- TUI: `d` toggles dark/light; follows the OS theme at start. Android: proper dark palette for
+  cards, rows and the gauge; DayNight system theme.
+
+### System tray / background mode
+- `filterscope tray` (or `filterscope-gui --tray`): sits in the tray, detects **network changes**
+  (gateway/resolver/SSID) and runs a quick scan automatically, then notifies “*wifi: blocked here —
+  discord.com, roblox.com…*”. Menu: Open window · Scan now · Check ▸ (eight one-click services) ·
+  Auto-scan on/off · Quit. Windows installer option: **start in the tray at login**.
+
+### 113 service profiles + your own
+- `check` now knows 113 services / 559 endpoints: CS2, Dota, Apex, EA FC, R6, Overwatch/Battle.net,
+  Xbox Live, PSN, Nintendo, GTA Online, Among Us, Free Fire, Call of Duty, Mobile Legends, GeForce
+  NOW, Prime Video, Disney+, Max, Crunchyroll, Exxen, BluTV, Apple Music, Facebook/Messenger,
+  Snapchat, Reddit, Pinterest, LinkedIn, WeChat, Viber, Skype, Slack, Google Meet, Element, Copilot,
+  Perplexity, DeepSeek, Mistral, Grok, Character.AI, Mullvad, NordVPN, ExpressVPN, Surfshark,
+  Windscribe, Tor, Tailscale, WARP, Gmail/Workspace, Outlook/365, iCloud, Yandex, Dropbox, MEGA,
+  EBA/MEB, Duolingo, Khan/Coursera, Trendyol/Hepsiburada, Amazon, PayPal/Binance, GitLab, PyPI/npm/
+  Docker, VS Code, Cursor/Replit, Linux mirrors, BBC/DW/Reuters, Turkish independent news, Ekşi
+  Sözlük, Wattpad, Imgur/Giphy, Speedtest… Every hostname resolved at authoring time.
+- **User profiles**: `filterscope services --template` writes `~/.filterscope/services.json`; edit it
+  and `filterscope check myschoolportal` — same shape as the built-in profiles (`tcp:PORT` hosts,
+  ports, download target).
+
 ## 3.5.115 — 2026-09-19 · **stable**
 
 ### Ask by name: `filterscope check valorant`

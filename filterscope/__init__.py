@@ -1,3 +1,3 @@
 """filterscope — measure network filtering/censorship legitimately, with your own traffic."""
 
-__version__ = "3.5.115"
+__version__ = "3.6.117"

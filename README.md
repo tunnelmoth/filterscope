@@ -4,7 +4,7 @@ Measure the **filtering / censorship** behaviour of the network you are on — l
 
 > Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
 
-**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.5.115**
+**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.6.117**
 
 Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 
@@ -98,6 +98,10 @@ The app is a native (Jetpack Compose) front-end over the same Python engine (Cha
 
 **Update check**: one request to the GitHub releases API at start; disable with `filterscope config set update_check false`.
 
+**Dark mode & accessibility**: the window follows the OS theme (or *View ▾ → Theme*), has high-contrast palettes and 100–175 % text; the TUI toggles with `d`; the Android app and the HTML report follow the system theme.
+
+**Tray / background**: `filterscope tray` sits in the system tray, re-scans when the network changes and notifies what is blocked; the Windows installer can start it at login.
+
 ### TUI keys
 
 `r` rescan · `t` toggle Tor · `s` save JSON+HTML · `/` filter sites · `f` affected only · `c` compare with previous scan · `1-5` tabs · `q` quit
@@ -107,7 +111,7 @@ The app is a native (Jetpack Compose) front-end over the same Python engine (Cha
 ```bash
 filterscope check valorant            # OK / PARTIAL / BLOCKED / THROTTLED, with reasons
 filterscope check discord roblox yt   # several at once; --json for scripts
-filterscope services                  # the 30 profiles it knows
+filterscope services                  # the 113 profiles it knows; --template writes ~/.filterscope/services.json for your own
 ```
 
 A profile is the set of endpoints the service actually needs (auth/API, CDN, game and chat servers, raw ports), the TCP ports it uses, UDP egress, and a real download from the service's own CDN measured against a Cloudflare baseline. The window has a **Check…** dialog and the Android app a **Check** tab.

@@ -290,9 +290,21 @@ def cmd_check(a) -> int:
 
 def cmd_services(a) -> int:
     from . import services
+    if a.template:
+        import os
+        from . import config as _cfg
+        path = os.path.join(_cfg.DIR, "services.json")
+        if os.path.exists(path):
+            print(f"exists: {path}")
+            return 1
+        os.makedirs(_cfg.DIR, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(services.USER_TEMPLATE, f, indent=2)
+        print(f"template written: {path} — edit it, then `filterscope check myschoolportal`")
+        return 0
     for k, s in services.SERVICES.items():
         al = (" (" + ", ".join(s["aliases"]) + ")") if s.get("aliases") else ""
-        print(f"{k:12} {s['name']}{al}  — {len(s['hosts'])} endpoints, {s['category']}")
+        print(f"{k:14} {s['name']}{al}  — {len(s['hosts'])} endpoints, {s['category']}{'  [user]' if s.get('user') else ''}")
     return 0
 
 
@@ -360,11 +372,13 @@ def build_parser():
     p.set_defaults(fn=cmd_check)
 
     p = sub.add_parser("services", help="list the service profiles `check` knows")
+    p.add_argument("--template", action="store_true", help="write ~/.filterscope/services.json with an example profile")
     p.set_defaults(fn=cmd_services)
 
     p = sub.add_parser("categories", help="list site categories and domains")
     p.set_defaults(fn=cmd_categories)
 
+    sub.add_parser("tray", help="system-tray / background mode: auto-scan on network change, notifications", add_help=False)
     sub.add_parser("wg", help="real WireGuard handshake test (args passed through)", add_help=False)
     sub.add_parser("warp", help="Cloudflare WARP tunnel manager, Linux (args passed through)", add_help=False)
     return ap
@@ -378,6 +392,9 @@ def main(argv=None):
     if argv and argv[0] == "warp":
         from .warp import main as warp_main
         return warp_main(argv[1:])
+    if argv and argv[0] == "tray":
+        from .tray import main as tray_main
+        return tray_main(argv[1:])
     ap = build_parser()
     if not argv:
         argv = ["tui"]

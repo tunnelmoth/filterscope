@@ -140,3 +140,29 @@ def net_fingerprint(label: str | None = None) -> dict:
 
 def net_name(fp: dict) -> str:
     return fp.get("label") or fp.get("ssid") or fp.get("search") or "?"
+
+
+def system_dark() -> bool:
+    """Best-effort: does the OS prefer a dark theme?"""
+    try:
+        if IS_WIN:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize") as k:
+                return winreg.QueryValueEx(k, "AppsUseLightTheme")[0] == 0
+        if IS_MAC:
+            return "dark" in _run(["defaults", "read", "-g", "AppleInterfaceStyle"]).lower()
+        out = _run(["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"])
+        if "dark" in out:
+            return True
+        out = _run(["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"])
+        if "dark" in out.lower():
+            return True
+        gtk = os.path.expanduser("~/.config/gtk-3.0/settings.ini")
+        if os.path.exists(gtk):
+            with open(gtk, encoding="utf-8", errors="replace") as f:
+                txt = f.read().lower()
+            if "gtk-application-prefer-dark-theme=1" in txt or "dark" in txt.split("gtk-theme-name=")[-1].split("\n")[0]:
+                return True
+    except Exception:
+        pass
+    return False

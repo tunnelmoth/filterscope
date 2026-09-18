@@ -74,8 +74,10 @@ val Green = Color(0xFF1A7F37)
 val Red = Color(0xFFC62828)
 val Amber = Color(0xFFB26A00)
 val Blue = Color(0xFF2B5FD9)
-val RedBg = Color(0xFFFDE8E8)
-val YelBg = Color(0xFFFFF4D6)
+val RedBgLight = Color(0xFFFDE8E8)
+val YelBgLight = Color(0xFFFFF4D6)
+val RedBgDark = Color(0xFF3A1F24)
+val YelBgDark = Color(0xFF3A3018)
 
 fun levelColor(level: String) = when (level) {
     "clean" -> Green; "light" -> Amber; "moderate" -> Color(0xFFD97706); "heavy" -> Red; "severe" -> Color(0xFF8B0000)
@@ -102,7 +104,8 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra("autoscan", false) == true) vm.autoscanPending = true
         setContent {
             val dark = isSystemInDarkTheme()
-            val scheme = if (dark) darkColorScheme(primary = Color(0xFF8AB4F8)) else lightColorScheme(primary = Blue)
+            val scheme = if (dark) darkColorScheme(primary = Color(0xFFC4B5FD), background = Color(0xFF17232F), surface = Color(0xFF1F2C3B),
+                surfaceVariant = Color(0xFF2D3C4E), onBackground = Color(0xFFEEF2F7), onSurface = Color(0xFFEEF2F7)) else lightColorScheme(primary = Blue)
             MaterialTheme(colorScheme = scheme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Main(vm, onOpen = { openReport(share = false) }, onShare = { openReport(share = true) }, onCard = { shareCard(it) })
@@ -238,7 +241,7 @@ fun Gauge(score: Int, level: String) {
             val stroke = Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
             val inset = 6.dp.toPx()
             val sz = Size(size.width - inset * 2, size.height - inset * 2)
-            drawArc(Color(0xFFE0E0E0), 135f, 270f, false, Offset(inset, inset), sz, style = stroke)
+            drawArc(Color(0x33808080), 135f, 270f, false, Offset(inset, inset), sz, style = stroke)
             if (score > 0) drawArc(color, 135f, 270f * score / 100f, false, Offset(inset, inset), sz, style = stroke)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -302,12 +305,13 @@ fun Sites(st: UiState) {
             fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 12.dp))
         LazyColumn(Modifier.fillMaxSize()) {
             items(rows, key = { it.domain }) { r ->
-                val bg = if (r.flagged) RedBg else if (r.transient) YelBg else Color.Transparent
+                val dark = isSystemInDarkTheme()
+                val bg = if (r.flagged) (if (dark) RedBgDark else RedBgLight) else if (r.transient) (if (dark) YelBgDark else YelBgLight) else Color.Transparent
                 Column(Modifier.fillMaxWidth().background(bg).clickable { expanded = if (expanded == r.domain) null else r.domain }
                     .padding(horizontal = 12.dp, vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(r.domain, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = if (r.flagged) Color.Black else MaterialTheme.colorScheme.onSurface)
+                            Text(r.domain, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                             Text(r.category + "  ·  ${r.ms} ms", fontSize = 11.sp, color = Color.Gray)
                         }
                         Column(horizontalAlignment = Alignment.End) {
@@ -316,7 +320,7 @@ fun Sites(st: UiState) {
                             Text("page ${r.block} · ECH ${r.ech}", fontSize = 11.sp, color = verdictColor(r.block))
                         }
                     }
-                    if (expanded == r.domain) Text(r.detail, fontSize = 11.sp, color = Color.DarkGray, modifier = Modifier.padding(top = 4.dp))
+                    if (expanded == r.domain) Text(r.detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                 }
                 HorizontalDivider()
             }
@@ -328,10 +332,11 @@ fun Sites(st: UiState) {
 fun Probes(st: UiState) {
     LazyColumn(Modifier.fillMaxSize()) {
         items(st.probes) { p ->
-            Row(Modifier.fillMaxWidth().background(if (p.bad) RedBg else Color.Transparent).padding(horizontal = 12.dp, vertical = 6.dp),
+            val dark = isSystemInDarkTheme()
+            Row(Modifier.fillMaxWidth().background(if (p.bad) (if (dark) RedBgDark else RedBgLight) else Color.Transparent).padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(p.probe, fontSize = 13.sp, color = if (p.bad) Color.Black else MaterialTheme.colorScheme.onSurface)
+                    Text(p.probe, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                     if (p.detail.isNotEmpty()) Text(p.detail, fontSize = 11.sp, color = Color.Gray, maxLines = 3)
                 }
                 Text(p.status, fontSize = 12.sp, color = verdictColor(p.status), fontWeight = FontWeight.SemiBold)

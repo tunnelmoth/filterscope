@@ -11,7 +11,7 @@ for pkg in ("textual", "rich", "dns", "certifi", "PIL"):
     d, b, h = collect_all(pkg)
     datas += d; binaries += b; hiddenimports += h
 datas += collect_data_files("filterscope", includes=["scripts/*.sh", "assets/*"])
-hiddenimports += ["filterscope.tui", "filterscope.wgcheck", "filterscope.warp",
+hiddenimports += ["filterscope.tui", "filterscope.wgcheck", "filterscope.warp", "filterscope.tray", "pystray", "pystray._win32",
                   "filterscope.htmlreport", "filterscope.compare", "filterscope.history"]
 
 a = Analysis(

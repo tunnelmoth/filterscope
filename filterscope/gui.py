@@ -26,9 +26,31 @@ from .render import site_flagged, site_notes
 
 LEVEL_COLOR = {"clean": "#1a7f37", "light": "#b26a00", "moderate": "#d97706",
                "heavy": "#c62828", "severe": "#8b0000"}
-BG, CARD, FG, MUTED, LINE = "#f4f5f7", "#ffffff", "#1a1a1a", "#666666", "#dfe2e6"
-ACCENT = "#2b5fd9"
-RED_BG, YEL_BG, GREEN_FG, RED_FG, YEL_FG = "#fde8e8", "#fff4d6", "#1a7f37", "#c62828", "#b26a00"
+PALETTES = {
+    "light": dict(BG="#f4f5f7", CARD="#ffffff", FG="#1a1a1a", MUTED="#666666", LINE="#dfe2e6", ACCENT="#2b5fd9",
+                  RED_BG="#fde8e8", YEL_BG="#fff4d6", GREEN_FG="#1a7f37", RED_FG="#c62828", YEL_FG="#b26a00", SEL="#dbe4ff", CYAN="#1e6fb3"),
+    "dark": dict(BG="#17232f", CARD="#1f2c3b", FG="#eef2f7", MUTED="#a3adbd", LINE="#2d3c4e", ACCENT="#8b5cf6",
+                 RED_BG="#3a1f24", YEL_BG="#3a3018", GREEN_FG="#3ddc84", RED_FG="#ff6b6b", YEL_FG="#ffb74d", SEL="#2d3c5e", CYAN="#8ab4f8"),
+    "light-hc": dict(BG="#ffffff", CARD="#ffffff", FG="#000000", MUTED="#222222", LINE="#000000", ACCENT="#0000cc",
+                     RED_BG="#ffd6d6", YEL_BG="#fff0b3", GREEN_FG="#006400", RED_FG="#b00000", YEL_FG="#7a4a00", SEL="#ffff00", CYAN="#00457c"),
+    "dark-hc": dict(BG="#000000", CARD="#000000", FG="#ffffff", MUTED="#e6e6e6", LINE="#ffffff", ACCENT="#ffff00",
+                    RED_BG="#5a0000", YEL_BG="#4a3a00", GREEN_FG="#00ff66", RED_FG="#ff5252", YEL_FG="#ffd54f", SEL="#0044aa", CYAN="#66ccff"),
+}
+
+
+def resolve_palette(cfg=None):
+    cfg = cfg or config.load()
+    theme = cfg.get("theme", "system")
+    dark = sysinfo.system_dark() if theme == "system" else theme == "dark"
+    key = ("dark" if dark else "light") + ("-hc" if cfg.get("high_contrast") else "")
+    return key, PALETTES[key]
+
+
+_PK, _P = resolve_palette()
+BG, CARD, FG, MUTED, LINE, ACCENT = _P["BG"], _P["CARD"], _P["FG"], _P["MUTED"], _P["LINE"], _P["ACCENT"]
+RED_BG, YEL_BG, GREEN_FG, RED_FG, YEL_FG = _P["RED_BG"], _P["YEL_BG"], _P["GREEN_FG"], _P["RED_FG"], _P["YEL_FG"]
+SEL, CYAN = _P["SEL"], _P["CYAN"]
+FONT_SCALE = max(75, min(200, int(config.load().get("font_scale", 100) or 100))) / 100.0
 
 def asset(name: str) -> str:
     base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
@@ -90,25 +112,61 @@ class App:
         except Exception:
             pass
         st = ttk.Style()
-        for theme in ("vista", "aqua", "clam"):
+        themes = ("clam",) if _PK != "light" else ("vista", "aqua", "clam")
+        for theme in themes:
             if theme in st.theme_names():
                 st.theme_use(theme)
                 break
-        base_font = ("Segoe UI", 10) if sys.platform.startswith("win") else ("TkDefaultFont", 10)
-        st.configure(".", background=BG, foreground=FG, font=base_font)
+        fs = int(round(10 * FONT_SCALE))
+        base_font = ("Segoe UI", fs) if sys.platform.startswith("win") else ("TkDefaultFont", fs)
+        try:
+            import tkinter.font as tkfont
+            for fn in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont", "TkFixedFont"):
+                f = tkfont.nametofont(fn)
+                f.configure(size=int(round(abs(f.cget("size")) * FONT_SCALE)) * (-1 if f.cget("size") < 0 else 1))
+        except Exception:
+            pass
+        st.configure(".", background=BG, foreground=FG, font=base_font, fieldbackground=CARD, bordercolor=LINE,
+                     lightcolor=LINE, darkcolor=LINE, troughcolor=LINE, insertcolor=FG)
+        st.configure("TButton", background=CARD, foreground=FG)
+        st.map("TButton", background=[("active", SEL)])
+        st.configure("Accent.TButton", background=ACCENT, foreground="#ffffff" if _PK != "dark-hc" else "#000000")
+        st.map("Accent.TButton", background=[("active", ACCENT)])
+        st.configure("TEntry", fieldbackground=CARD, foreground=FG)
+        st.configure("TCombobox", fieldbackground=CARD, foreground=FG, background=CARD, arrowcolor=FG)
+        st.map("TCombobox", fieldbackground=[("readonly", CARD)], foreground=[("readonly", FG)], selectbackground=[("readonly", CARD)], selectforeground=[("readonly", FG)])
+        st.configure("TCheckbutton", background=BG, foreground=FG)
+        st.configure("TNotebook", background=BG)
+        st.configure("TNotebook.Tab", background=CARD, foreground=FG, padding=(10, 4))
+        st.map("TNotebook.Tab", background=[("selected", BG)], foreground=[("selected", FG)])
+        st.configure("TLabelframe", background=BG, foreground=FG)
+        st.configure("TLabelframe.Label", background=BG, foreground=FG)
+        st.configure("TMenubutton", background=CARD, foreground=FG)
+        st.configure("Horizontal.TProgressbar", background=ACCENT, troughcolor=LINE)
+        st.configure("TScrollbar", background=CARD, troughcolor=BG, arrowcolor=FG)
+        r.option_add("*Menu.background", CARD); r.option_add("*Menu.foreground", FG)
+        r.option_add("*Menu.activeBackground", SEL); r.option_add("*Menu.activeForeground", FG)
+        r.option_add("*Listbox.background", CARD); r.option_add("*Listbox.foreground", FG)
+        r.option_add("*Text.background", CARD); r.option_add("*Text.foreground", FG); r.option_add("*Text.insertBackground", FG)
         st.configure("Card.TFrame", background=CARD)
         st.configure("Card.TLabel", background=CARD)
         st.configure("Muted.TLabel", foreground=MUTED, background=CARD)
-        st.configure("H.TLabel", font=(base_font[0], 15, "bold"), background=CARD)
-        st.configure("Big.TLabel", font=(base_font[0], 26, "bold"), background=CARD)
-        st.configure("Accent.TButton", font=(base_font[0], 10, "bold"))
+        st.configure("H.TLabel", font=(base_font[0], int(round(15 * FONT_SCALE)), "bold"), background=CARD)
+        st.configure("Big.TLabel", font=(base_font[0], int(round(26 * FONT_SCALE)), "bold"), background=CARD)
+        st.configure("Accent.TButton", font=(base_font[0], fs, "bold"))
         st.configure("Treeview", rowheight=24, background=CARD, fieldbackground=CARD)
         st.configure("Treeview.Heading", font=(base_font[0], 10, "bold"))
-        st.map("Treeview", background=[("selected", "#dbe4ff")], foreground=[("selected", FG)])
+        st.configure("Treeview", foreground=FG, rowheight=int(round(24 * FONT_SCALE)))
+        st.configure("Treeview.Heading", background=CARD, foreground=FG)
+        st.map("Treeview", background=[("selected", SEL)], foreground=[("selected", FG)])
 
         # toolbar
         tb = ttk.Frame(r, padding=(12, 10, 12, 4))
         tb.pack(fill="x")
+        rt = tb
+        if FONT_SCALE >= 1.25:            # big text: export/report buttons get their own row
+            rt = ttk.Frame(r, padding=(12, 0, 12, 4))
+            rt.pack(fill="x")
         self.btn_scan = ttk.Button(tb, text="▶  " + t("ui.scan"), style="Accent.TButton", command=self.start_scan)
         self.btn_scan.pack(side="left")
         self.btn_stop = ttk.Button(tb, text=t("ui.stop"), command=self.stop_scan, state="disabled")
@@ -122,17 +180,34 @@ class App:
         ttk.Button(tb, text=t("ui.sites"), command=self.sites_dialog).pack(side="left", padx=(0, 4))
         ttk.Button(tb, text=t("chk.go") + "…", command=self.check_dialog).pack(side="left", padx=(0, 6))
         lang_btn = ttk.Button(tb, text="TR" if get_lang() == "en" else "EN", width=3, command=self.toggle_lang)
-        lang_btn.pack(side="left", padx=(0, 12))
-        ttk.Button(tb, text=t("ui.folder"), width=7, command=lambda: open_path(config.DIR if os.path.isdir(config.DIR) else os.getcwd())).pack(side="right")
-        ttk.Button(tb, text=t("ui.compare"), width=10, command=self.compare_prev).pack(side="right", padx=4)
-        mb = ttk.Menubutton(tb, text=t("ui.save") + " ▾", width=10)
+        lang_btn.pack(side="left", padx=(0, 4))
+        vb = ttk.Menubutton(tb, text=t("ui.view") + " ▾", width=9)
+        vm = tk.Menu(vb, tearoff=False)
+        cfg0 = config.load()
+        self._theme_var = tk.StringVar(value=cfg0.get("theme", "system"))
+        self._hc_var = tk.BooleanVar(value=bool(cfg0.get("high_contrast")))
+        self._fs_var = tk.IntVar(value=int(cfg0.get("font_scale", 100) or 100))
+        tm = tk.Menu(vm, tearoff=False)
+        for key in ("system", "light", "dark"):
+            tm.add_radiobutton(label=t("ui.theme." + key), value=key, variable=self._theme_var, command=self._save_view)
+        vm.add_cascade(label=t("ui.theme"), menu=tm)
+        vm.add_checkbutton(label=t("ui.contrast"), variable=self._hc_var, command=self._save_view)
+        sm = tk.Menu(vm, tearoff=False)
+        for pct in (100, 125, 150, 175):
+            sm.add_radiobutton(label=f"{pct}%", value=pct, variable=self._fs_var, command=self._save_view)
+        vm.add_cascade(label=t("ui.textsize"), menu=sm)
+        vb["menu"] = vm
+        vb.pack(side="left", padx=(0, 12))
+        ttk.Button(rt, text=t("ui.folder"), width=7, command=lambda: open_path(config.DIR if os.path.isdir(config.DIR) else os.getcwd())).pack(side="right")
+        ttk.Button(rt, text=t("ui.compare"), width=10, command=self.compare_prev).pack(side="right", padx=4)
+        mb = ttk.Menubutton(rt, text=t("ui.save") + " ▾", width=10)
         menu = tk.Menu(mb, tearoff=False)
         menu.add_command(label=t("ui.html"), command=self.save_html)
         menu.add_command(label=t("ui.json"), command=self.save_json)
         menu.add_command(label=t("ui.card"), command=self.save_card)
         mb["menu"] = menu
         mb.pack(side="right", padx=4)
-        self.btn_view = ttk.Button(tb, text=t("ui.report"), width=13, style="Accent.TButton",
+        self.btn_view = ttk.Button(rt, text=t("ui.report"), width=13, style="Accent.TButton",
                                    command=self.view_report, state="disabled")
         self.btn_view.pack(side="right", padx=(12, 4))
 
@@ -178,7 +253,7 @@ class App:
         left = ttk.Labelframe(f, text=t("ui.findings"), padding=6)
         left.pack(side="left", fill="both", expand=True, padx=(0, 6))
         self.findings = tk.Listbox(left, bg=CARD, fg=FG, highlightthickness=0, borderwidth=0,
-                                   selectbackground="#dbe4ff", selectforeground=FG, activestyle="none")
+                                   selectbackground=SEL, selectforeground=FG, activestyle="none")
         self.findings.pack(fill="both", expand=True)
         right = ttk.Labelframe(f, text=t("ui.advice"), padding=6)
         right.pack(side="left", fill="both", expand=True)
@@ -367,7 +442,7 @@ class App:
         status = tk.StringVar(value=t("chk.hint"))
         out = tk.Text(win, bg=CARD, fg=FG, wrap="word", borderwidth=1, relief="solid", highlightthickness=0,
                       padx=8, pady=6, state="disabled", font="TkDefaultFont")
-        for tag, col in (("ok", GREEN_FG), ("bad", RED_FG), ("warn", YEL_FG), ("dim", MUTED), ("cyan", "#1e6fb3")):
+        for tag, col in (("ok", GREEN_FG), ("bad", RED_FG), ("warn", YEL_FG), ("dim", MUTED), ("cyan", CYAN)):
             out.tag_configure(tag, foreground=col)
         out.tag_configure("h", font=("TkDefaultFont", 13, "bold"))
         out.tag_configure("b", font=("TkDefaultFont", 10, "bold"))
@@ -693,6 +768,14 @@ class App:
             self._status.set(t("ui.saved", name=os.path.basename(p)))
             open_path(p)
 
+    def _save_view(self):
+        cfg = config.load()
+        cfg["theme"] = self._theme_var.get()
+        cfg["high_contrast"] = bool(self._hc_var.get())
+        cfg["font_scale"] = int(self._fs_var.get())
+        config.save(cfg)
+        self._status.set(t("ui.restart_note"))
+
     def toggle_lang(self):
         cfg = config.load()
         cfg["lang"] = "tr" if get_lang() == "en" else "en"
@@ -775,6 +858,9 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if "--lang" in argv:
         set_lang(argv[argv.index("--lang") + 1])
+    if "--tray" in argv:
+        from .tray import main as tray_main
+        return tray_main([a for a in argv if a != "--tray"])
     root = tk.Tk()
     App(root, autoscan=("--autoscan" in argv or "--scan" in argv))
     root.mainloop()

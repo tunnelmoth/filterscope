@@ -514,7 +514,7 @@ class App:
         return True
 
     def _default_name(self, ext):
-        return f"filterscope-{self.report['net'].get('label') or self.report['net']['id']}-{time.strftime('%Y%m%d-%H%M%S')}.{ext}"
+        return f"filterscope-{core.safe_name(self.report['net'].get('label') or self.report['net']['id'])}-{time.strftime('%Y%m%d-%H%M%S')}.{ext}"
 
     def save_html(self):
         if not self._need_report():

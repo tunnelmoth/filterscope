@@ -179,6 +179,12 @@ NEUTRAL = ("ok", "?", "no-dns", "unreachable", "", None)
 UA = f"Mozilla/5.0 (compatible; filterscope/{__version__})"
 
 
+def safe_name(s: str, default: str = "scan") -> str:
+    """Filesystem-safe slug for user-supplied labels (no separators, no dot-prefix)."""
+    s = re.sub(r"[^A-Za-z0-9._-]+", "_", (s or "").strip())[:48].strip("._-")
+    return s or default
+
+
 def retry(fn, times=2, ok=lambda r: True):
     """Call fn until ok(result) or attempts run out; returns the last result."""
     r = None

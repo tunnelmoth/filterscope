@@ -14,9 +14,25 @@ if ! command -v warp-cli >/dev/null; then
   say "$D" "downloading the official Cloudflare WARP package (not AUR)…"
   mkdir -p "$WORK"; cd "$WORK"
   if [ ! -f warp.deb ]; then
-    deb=$(curl -fsSL "$DEB_BASE/dists/bookworm/main/binary-amd64/Packages" \
-          | awk -F': ' '/^Filename:/{print $2; exit}')
+    # verify the apt metadata chain: Release (signed) → Packages (sha256) → .deb (sha256)
+    curl -fsSL "$DEB_BASE/dists/bookworm/Release" -o Release
+    curl -fsSL "$DEB_BASE/dists/bookworm/Release.gpg" -o Release.gpg
+    curl -fsSL "$DEB_BASE/pubkey.gpg" -o pubkey.gpg
+    if command -v gpgv >/dev/null 2>&1; then
+      gpg --dearmor < pubkey.gpg > keyring.gpg 2>/dev/null || cp pubkey.gpg keyring.gpg
+      gpgv --keyring "$PWD/keyring.gpg" Release.gpg Release || { say "$R" "Release signature INVALID — aborting"; exit 1; }
+    else
+      say "$R" "gpgv not found: cannot verify the repository signature (hashes still checked over HTTPS)"
+    fi
+    curl -fsSL "$DEB_BASE/dists/bookworm/main/binary-amd64/Packages" -o Packages
+    want=$(awk '/^SHA256:/{f=1;next} f && /main\/binary-amd64\/Packages$/{print $1; exit}' Release)
+    have=$(sha256sum Packages | cut -d' ' -f1)
+    [ -n "$want" ] && [ "$want" = "$have" ] || { say "$R" "Packages hash mismatch — aborting"; exit 1; }
+    deb=$(awk -F': ' '/^Filename:/{print $2; exit}' Packages)
+    debsum=$(awk -F': ' '/^SHA256:/{print $2; exit}' Packages)
     curl -fsSL "$DEB_BASE/$deb" -o warp.deb
+    [ "$(sha256sum warp.deb | cut -d' ' -f1)" = "$debsum" ] || { rm -f warp.deb; say "$R" ".deb hash mismatch — aborting"; exit 1; }
+    say "$G" "package verified (signature + sha256)"
   fi
   rm -rf root && mkdir root
   ar x warp.deb && tar xf data.tar.* -C root

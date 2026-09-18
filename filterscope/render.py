@@ -177,8 +177,8 @@ def http_rows(report):
 def print_header(report):
     fp = report["net"]
     console.print(f"\n[bold]  NETWORK FILTERING TEST[/] [dim]({report.get('ts', '')})  filterscope {report.get('version', '')}[/]")
-    console.print(f"[dim]  network: {sysinfo.net_name(fp)}  [id {fp['id']}]  gw {fp.get('gateway') or '?'}  "
-                  f"resolver {fp.get('resolver') or '?'}  {fp.get('os', '')}[/]")
+    console.print(f"[dim]  network: {escape(sysinfo.net_name(fp))}  [id {fp['id']}]  gw {escape(fp.get('gateway') or '?')}  "
+                  f"resolver {escape(fp.get('resolver') or '?')}  {escape(fp.get('os', ''))}[/]")
     console.print("[dim]  your own traffic, clean allowlist — no inappropriate sites pinged[/]\n")
 
 

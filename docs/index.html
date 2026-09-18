@@ -8,85 +8,33 @@
 <meta property="og:title" content="filterscope — see what your network blocks">
 <meta property="og:description" content="Measure DNS tampering, SNI-DPI, TLS interception, blocked ports and more. One click, evidence you can share.">
 <meta property="og:image" content="assets/gui-overview.webp">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://api.github.com; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#17232f">
 <link rel="icon" href="assets/icon.png">
-<style>
-:root{--bg:#17232f;--fg:#eef2f7;--mut:#a3adbd;--acc:#8b5cf6;--acc2:#c4b5fd;--ok:#a3e635;--bad:#ff6b6b;--warn:#ffb74d;--card:#1f2c3b;--line:#2d3c4e;--r:14px}
-*{box-sizing:border-box}html{scroll-behavior:smooth}
-html,body{overflow-x:hidden;max-width:100%}
-body{margin:0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
-a{color:var(--acc2)}
-.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
-header.hero{position:relative;min-height:88vh;display:flex;align-items:center;overflow:hidden;background:var(--bg)}
-header.hero .bg{position:absolute;top:0;bottom:0;left:42%;right:0;background:url(assets/bg.webp) right center/contain no-repeat}
-header.hero .fade{position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 38%,rgba(23,35,47,0) 60%)}
-header.hero .wrap{position:relative;padding:80px 20px;width:100%}
-header.hero .txt{max-width:600px}
-@media(max-width:900px){header.hero .bg{left:0;top:0;bottom:auto;height:46vh;background-position:center top;background-size:cover;opacity:.55}
-  header.hero .fade{background:linear-gradient(180deg,rgba(23,35,47,0) 0%,rgba(23,35,47,.6) 34vh,var(--bg) 46vh)}header.hero .wrap{padding-top:44vh}}
-.brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:20px;letter-spacing:.2px}
-.brand img{width:36px;height:36px;border-radius:9px}
-h1{font-size:clamp(38px,7vw,72px);line-height:1.02;margin:28px 0 12px;letter-spacing:-.02em}
-h1 span{color:var(--acc2)}
-.lead{font-size:clamp(17px,2.2vw,22px);color:var(--mut);max-width:720px;margin:0 0 30px}
-.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:12px;font-weight:700;text-decoration:none;border:1px solid var(--line);color:var(--fg);background:var(--card);transition:.15s}
-.btn:hover{transform:translateY(-1px);border-color:var(--acc)}
-.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-size:18px;padding:16px 26px}
-.btn.primary:hover{background:#7c4ce6}
-.btn small{display:block;font-weight:400;font-size:12px;opacity:.8}
-.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2a2447;color:var(--acc2);font-size:12px;font-weight:600;margin-right:6px}
-.badges{margin-top:18px;color:var(--mut);font-size:14px}
-section{padding:64px 0}
-h2{font-size:clamp(26px,3.5vw,36px);margin:0 0 8px;letter-spacing:-.01em}
-.sub{color:var(--mut);margin:0 0 28px;max-width:760px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
-.card h3{margin:0 0 6px;font-size:17px}.card p{margin:0;color:var(--mut);font-size:14px}
-.card .k{display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--ok);background:#1f2f1a;padding:2px 7px;border-radius:6px;margin-bottom:8px}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;counter-reset:s}
-.step{position:relative;padding:22px 18px 18px 18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
-.step::before{counter-increment:s;content:counter(s);position:absolute;top:-14px;left:16px;width:28px;height:28px;border-radius:50%;background:var(--ok);color:#17232f;font-weight:800;display:grid;place-items:center;font-size:14px}
-.shots{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start}
-.shots img{width:100%;border-radius:var(--r);border:1px solid var(--line);background:#000}
-@media(max-width:800px){.shots{grid-template-columns:1fr}}
-.verdict{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:#111a24;border:1px solid var(--line);border-radius:var(--r);padding:16px;overflow:auto;white-space:pre;color:#cdd6ea}
-.verdict b{color:var(--warn)}.verdict i{color:var(--bad);font-style:normal}.verdict u{color:var(--ok);text-decoration:none}
-table{width:100%;border-collapse:collapse;font-size:15px}
-td,th{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600;font-size:13px}
-td a.dl{font-weight:700}
-.note{background:#24203d;border:1px solid #3d3566;border-radius:var(--r);padding:16px 18px;color:#e4ddff}
-.faq details{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:10px}
-.faq summary{cursor:pointer;font-weight:700}.faq p{color:var(--mut);margin:10px 0 0}
-footer{padding:40px 0 60px;color:var(--mut);font-size:14px;border-top:1px solid var(--line)}
-.lang{position:absolute;top:18px;right:20px;display:flex;gap:6px}
-.lang button{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:5px 10px;cursor:pointer;font-weight:600}
-.lang button.on{color:var(--fg);border-color:var(--acc)}
-[data-tr]{display:none}html[lang="tr"] [data-en]{display:none}html[lang="tr"] [data-tr]{display:revert}
-html[lang="tr"] span[data-tr],html[lang="tr"] a[data-tr],html[lang="tr"] b[data-tr]{display:inline}
-.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;word-break:break-all}
-.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.verdict{max-width:100%}
-header.hero{min-height:min(88vh,900px)}
-</style>
+<link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 
 <header class="hero">
   <div class="bg" aria-hidden="true"></div><div class="fade" aria-hidden="true"></div>
-  <div class="lang"><button id="lang-en" class="on" onclick="setLang('en')">EN</button><button id="lang-tr" onclick="setLang('tr')">TR</button></div>
+  <div class="lang"><button id="lang-en" class="on" type="button">EN</button><button id="lang-tr" type="button">TR</button></div>
   <div class="wrap"><div class="txt">
-    <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.2.0</span></div>
+    <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.2.112 · stable</span></div>
     <h1 data-en>See what your network <span>blocks</span>.</h1>
     <h1 data-tr>Ağının neyi <span>engellediğini</span> gör.</h1>
     <p class="lead" data-en>One click. filterscope measures the filtering on the network you are on — DNS tampering, TLS server-name inspection, HTTPS interception, blocked ports and protocols — using only <b>your own traffic</b> and a <b>clean list of well-known sites</b>. Then it tells you, in plain language, what is going on and what to do.</p>
     <p class="lead" data-tr>Tek tık. filterscope bağlı olduğun ağdaki filtrelemeyi ölçer — DNS kurcalama, TLS sunucu-adı denetimi (SNI-DPI), HTTPS'in kırılması, kapalı port ve protokoller — yalnızca <b>kendi trafiğinle</b> ve <b>temiz, tanınmış site listesiyle</b>. Sonra ne olduğunu ve ne yapabileceğini düz cümlelerle söyler.</p>
-    <div class="cta">
-      <a class="btn primary" id="cta" href="https://github.com/tunnelmoth/filterscope/releases/latest">
-        <span id="cta-text" data-en>Download</span><span data-tr>İndir</span>
-      </a>
-      <a class="btn" href="#downloads"><span data-en>All platforms</span><span data-tr>Tüm platformlar</span></a>
-      <a class="btn" href="https://github.com/tunnelmoth/filterscope"><span data-en>Source (GitHub)</span><span data-tr>Kaynak kod (GitHub)</span></a>
+    <div class="cta" id="cta-row">
+      <a class="btn plat" data-os="windows" data-asset="filterscope-setup-" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>Windows</b><small>installer .exe</small></a>
+      <a class="btn plat" data-os="android" data-asset="filterscope-android-" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>Android</b><small>.apk</small></a>
+      <a class="btn plat" data-os="linux" data-asset="filterscope-gui-linux-x86_64" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-linux-x86_64"><b>Linux</b><small>x86_64</small></a>
+      <a class="btn plat" data-os="mac" data-asset="filterscope-gui-macos-arm64.app.zip" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-macos-arm64.app.zip"><b>macOS</b><small>Apple silicon</small></a>
+    </div>
+    <div class="cta2">
+      <a href="#downloads"><span data-en>all downloads &amp; checksums</span><span data-tr>tüm indirmeler ve sağlama toplamları</span></a> ·
+      <a href="https://github.com/tunnelmoth/filterscope"><span data-en>source on GitHub</span><span data-tr>kaynak kod (GitHub)</span></a> ·
+      <span class="mono">pipx install git+https://github.com/tunnelmoth/filterscope</span>
     </div>
     <div class="badges">Windows · Android · Linux · macOS &nbsp;·&nbsp; GPL-3.0 &nbsp;·&nbsp; <span data-en>no account, no telemetry, nothing leaves your device except the test traffic itself</span><span data-tr>hesap yok, telemetri yok; cihazından yalnızca test trafiğinin kendisi çıkar</span></div>
   </div></div>
@@ -144,7 +92,7 @@ header.hero{min-height:min(88vh,900px)}
 
 <section id="downloads">
   <h2 data-en>Downloads</h2><h2 data-tr>İndir</h2>
-  <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.2.0</b> · <a id="sums" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
+  <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.2.112</b> (stable) · <a id="sums" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
   <div class="tablewrap"><table id="dl">
     <thead><tr><th data-en>Platform</th><th data-tr>Platform</th><th data-en>File</th><th data-tr>Dosya</th><th data-en>Notes</th><th data-tr>Not</th></tr></thead>
     <tbody>
@@ -175,37 +123,13 @@ header.hero{min-height:min(88vh,900px)}
   <div><b>filterscope</b> — <span data-en>free software, GPL-3.0-or-later.</span><span data-tr>özgür yazılım, GPL-3.0-or-later.</span> <a href="https://github.com/tunnelmoth/filterscope">github.com/tunnelmoth/filterscope</a> · <a href="https://github.com/tunnelmoth/filterscope/issues">issues</a> · <a href="https://github.com/tunnelmoth/filterscope/blob/main/CHANGELOG.md">changelog</a></div>
   <div style="margin-top:8px" data-en>Measure with your own traffic, on your own device. Built in the spirit of EFF and Tor: transparency about what networks do to the people using them.</div>
   <div style="margin-top:8px" data-tr>Kendi trafiğinle, kendi cihazında ölç. EFF ve Tor ruhuyla: ağların, kullananlarına ne yaptığı konusunda şeffaflık.</div>
+  <div class="disclaimer">
+    <b data-en>Disclaimer.</b><b data-tr>Sorumluluk reddi.</b>
+    <span data-en>filterscope is a measurement tool provided “as is”, without warranty of any kind, under the GNU GPL v3. It reports observations about the network you are connected to; it does not bypass, alter or attack anything. Results can be wrong (transient outages, CDN behaviour, local software) and are not legal evidence by themselves. You are responsible for complying with the rules of the network you use and the laws that apply to you. The authors accept no liability for any use of this software or its output.</span>
+    <span data-tr>filterscope bir ölçüm aracıdır; GNU GPL v3 altında, hiçbir garanti olmaksızın “olduğu gibi” sunulur. Bağlı olduğun ağa ilişkin gözlemleri raporlar; hiçbir şeyi aşmaz, değiştirmez veya saldırmaz. Sonuçlar hatalı olabilir (geçici kesintiler, CDN davranışı, yerel yazılımlar) ve tek başına hukuki delil değildir. Kullandığın ağın kurallarına ve tabi olduğun yasalara uymak senin sorumluluğundadır. Yazarlar bu yazılımın veya çıktısının herhangi bir kullanımından sorumluluk kabul etmez.</span>
+  </div>
 </div></footer>
 
-<script>
-(function(){
-  var REPO="tunnelmoth/filterscope", base="https://github.com/"+REPO+"/releases/latest/download/";
-  function setLang(l){document.documentElement.lang=l;document.getElementById('lang-en').classList.toggle('on',l==='en');document.getElementById('lang-tr').classList.toggle('on',l==='tr');try{localStorage.setItem('fs-lang',l)}catch(e){}}
-  window.setLang=setLang;
-  try{var s=localStorage.getItem('fs-lang');if(s)setLang(s);else if((navigator.language||'').toLowerCase().startsWith('tr'))setLang('tr');}catch(e){}
-  // pick the right primary download for this device
-  var ua=navigator.userAgent, plat=navigator.platform||"", cta=document.getElementById('cta'), t=document.getElementById('cta-text');
-  var pick=null, label=null;
-  if(/Android/i.test(ua)){pick="android";label="Download for Android (.apk)";}
-  else if(/Windows/i.test(ua)){pick="setup";label="Download for Windows";}
-  else if(/Mac/i.test(plat)&&!/iPhone|iPad/.test(ua)){pick="filterscope-gui-macos-arm64.app.zip";label="Download for macOS";}
-  else if(/Linux/i.test(plat)){pick="filterscope-gui-linux-x86_64";label="Download for Linux";}
-  if(pick&&pick.indexOf("filterscope-")===0){cta.href=base+pick;t.textContent=label;}
-  else if(label){t.textContent=label;}
-  // fill versioned asset names (setup exe, apk) from the latest release
-  fetch("https://api.github.com/repos/"+REPO+"/releases/latest").then(function(r){return r.json()}).then(function(rel){
-    if(!rel||!rel.assets)return;
-    var v=rel.tag_name||"";document.getElementById('ver').textContent=v;document.getElementById('ver2').textContent=v;
-    rel.assets.forEach(function(a){
-      document.querySelectorAll('a[data-asset]').forEach(function(el){
-        var p=el.getAttribute('data-asset');
-        if(a.name===p||(p.slice(-1)==='-'&&a.name.indexOf(p)===0)){el.href=a.browser_download_url;el.textContent=a.name;}
-      });
-      if(pick==="setup"&&a.name.indexOf("filterscope-setup-")===0)cta.href=a.browser_download_url;
-      if(pick==="android"&&a.name.indexOf("filterscope-android-")===0)cta.href=a.browser_download_url;
-    });
-  }).catch(function(){});
-})();
-</script>
+<script src="assets/site.js"></script>
 </body>
 </html>

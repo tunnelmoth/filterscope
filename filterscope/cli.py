@@ -96,11 +96,11 @@ def _run_with_progress(opts, quiet=False):
             for k in ("dns", "sni", "blockpage"):
                 v = r[k]["verdict"]
                 if v not in core.NEUTRAL:
-                    prog.console.print(f"  [red]⚑[/] {dom:28} {k}=", verdict_text(v),
+                    prog.console.print(f"  [red]⚑[/] {escape(dom):28} {k}=", verdict_text(v),
                                        f"[dim]{escape(r[k].get('detail', '') or '')}[/]")
         elif ev in ("port", "udp", "quic", "dns_enc") and not quiet:
             if x[1].startswith("BLOCKED"):
-                prog.console.print(f"  [red]⚑[/] {x[0]:28} ", verdict_text(x[1]))
+                prog.console.print(f"  [red]⚑[/] {escape(x[0]):28} ", verdict_text(x[1]))
         elif ev in ("dns_int", "http_proxy", "nxdomain", "url_filter", "ipv6") and not quiet:
             if x[0]["verdict"] not in core.NEUTRAL and x[0]["verdict"] not in ("open",):
                 prog.console.print(f"  [red]⚑[/] {ev:28} ", verdict_text(x[0]["verdict"]), f"[dim]{escape(x[0].get('detail', ''))}[/]")
@@ -111,7 +111,7 @@ def _run_with_progress(opts, quiet=False):
         elif ev == "verify" and not quiet:
             dom, ok, r = x
             if not ok:
-                prog.console.print(f"  [yellow]↺[/] {dom:28} transient, dropped")
+                prog.console.print(f"  [yellow]↺[/] {escape(dom):28} transient, dropped")
         elif ev == "tor":
             state["tor"] = False
         elif ev == "net":
@@ -148,7 +148,7 @@ def cmd_scan(a) -> int:
         written = scan.write_outputs(report, a.json, a.anon_json, a.html, a.history, not a.no_history)
         if fmt != "json":
             for what, path in written:
-                console.print(f"[dim]  {what} → {path}[/]")
+                console.print(f"[dim]  {what} → {escape(str(path))}[/]")
         if not a.watch:
             return 2 if report["flagged"] else 0
         prev = report

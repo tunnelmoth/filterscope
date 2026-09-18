@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.2.112 — 2026-09-19 · **stable**
+
+First release marked stable. Version scheme from here: `MAJOR.MINOR.BUILD`, where BUILD is a
+monotonically increasing build number (100 + commit count at tag time).
+
+### Security audit (fixes)
+- `filterscope warp`: the wgcf binary is verified against the release's `checksums.txt`; the WARP
+  `.deb` is verified through the apt chain (`Release` signature via `gpgv` when available →
+  `Packages` SHA256 → `.deb` SHA256). Mismatch aborts the install.
+- User-supplied labels are sanitized before they become file names (TUI/GUI/Android) — a label like
+  `../x` could previously write a report outside the chosen folder.
+- Network-derived strings (domains, SSID, resolver, probe labels) are escaped before reaching the
+  rich console renderer (markup injection).
+- GitHub Actions pinned to commit SHAs; CI workflow runs with read-only token.
+- `SECURITY.md`: threat model, deliberate unverified-TLS probes, signing status, reporting.
+
+### Website
+- Four platform buttons side by side (this device's highlighted), disclaimer, Content-Security-Policy
+  (external CSS/JS, no inline code).
+
 ## 3.2.0 — 2026-09-18
 
 ### Android app

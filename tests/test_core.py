@@ -257,3 +257,11 @@ def test_vpn_advice_udp_untested():
     r["udp"] = ""
     text = " ".join(t for _, t in core.vpn_advice(r))
     assert "not tested" in text and "FAIL" not in text
+
+
+def test_safe_name():
+    assert core.safe_name("school") == "school"
+    assert core.safe_name("../../etc/passwd") == "etc_passwd"
+    assert core.safe_name("  .hidden/../x  ") == "hidden_.._x"
+    assert core.safe_name("") == "scan" and core.safe_name("///", "id") == "id"
+    assert "/" not in core.safe_name("a/b\\c") and len(core.safe_name("x" * 200)) <= 48

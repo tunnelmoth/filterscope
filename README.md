@@ -4,7 +4,7 @@ Measure the **filtering / censorship** behaviour of the network you are on — l
 
 > Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
 
-**Website & downloads: https://tunnelmoth.github.io/filterscope/**
+**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.2.112**
 
 Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 

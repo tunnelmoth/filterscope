@@ -270,7 +270,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         val json = _state.value.reportJson ?: return@withContext null
         val html = bridge.callAttr("render_html", json).toString()
         val dir = File(getApplication<Application>().cacheDir, "reports").apply { mkdirs() }
-        val name = "filterscope-" + (_state.value.label.ifEmpty { "scan" }) + "-" +
+        val safe = _state.value.label.replace(Regex("[^A-Za-z0-9._-]+"), "_").trim('.', '_', '-').take(48).ifEmpty { "scan" }
+        val name = "filterscope-" + safe + "-" +
                 java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date()) + ".html"
         File(dir, name).apply { writeText(html) }
     }

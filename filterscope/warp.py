@@ -50,13 +50,27 @@ def ensure_wgcf():
                        timeout=15).json()
     tag = rel["tag_name"]
     num = tag.lstrip("v")
-    url = f"https://github.com/ViRb3/wgcf/releases/download/{tag}/wgcf_{num}_linux_amd64"
+    name = f"wgcf_{num}_linux_amd64"
+    url = f"https://github.com/ViRb3/wgcf/releases/download/{tag}/{name}"
+    sums = requests.get(f"https://github.com/ViRb3/wgcf/releases/download/{tag}/checksums.txt", timeout=30)
+    sums.raise_for_status()
+    expected = next((l.split()[0] for l in sums.text.splitlines() if l.strip().endswith(name)), None)
+    if not expected:
+        sys.exit(f"wgcf {tag}: no checksum published for {name} — refusing to install")
     os.makedirs(os.path.dirname(WGCF), exist_ok=True)
+    import hashlib
+    h = hashlib.sha256()
+    tmp = WGCF + ".part"
     with requests.get(url, timeout=60, stream=True) as r:
         r.raise_for_status()
-        with open(WGCF, "wb") as f:
+        with open(tmp, "wb") as f:
             for chunk in r.iter_content(8192):
+                h.update(chunk)
                 f.write(chunk)
+    if h.hexdigest() != expected:
+        os.remove(tmp)
+        sys.exit(f"wgcf {tag}: SHA256 mismatch ({h.hexdigest()[:12]}… != {expected[:12]}…) — refusing to install")
+    os.replace(tmp, WGCF)
     os.chmod(WGCF, 0o755)
     say(G, f"installed wgcf {tag} → {WGCF}")
     return WGCF

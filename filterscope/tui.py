@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 
+from rich.markup import escape
 from rich.text import Text
 from textual import on
 from textual.app import App, ComposeResult
@@ -168,9 +169,9 @@ class FilterScope(App):
 
     # ── header ──
     def set_net(self, fp):
-        self.query_one("#net", Static).update(
+        self.query_one("#net", Static).update(Text(
             f"network: {sysinfo.net_name(fp)}   [id {fp['id']}]   gw {fp['gateway'] or '?'}   "
-            f"resolver {fp['resolver'] or '?'}   {fp.get('os', '')}")
+            f"resolver {fp['resolver'] or '?'}   {fp.get('os', '')}"))
 
     def set_progress(self, done, total):
         self.query_one("#progress", ProgressBar).update(total=max(total, 1), progress=done)
@@ -212,7 +213,7 @@ class FilterScope(App):
                     note = " (bypassable via ECH)"
                 if res[k].get("injected"):
                     note += " (RST injected in-path)"
-                self.log_write(f"[red]⚑ {dom}: {k}={v}[/]{note}")
+                self.log_write(f"[red]⚑ {escape(dom)}: {k}={escape(v)}[/]{note}")
 
     def update_site_silent(self, dom, res):
         self.live["sites"][dom] = res
@@ -269,7 +270,7 @@ class FilterScope(App):
         except Exception:
             return
         if status.startswith(("BLOCKED", "INTERCEPTED", "PROXY", "TLS-MITM", "NXDOMAIN", "URL-")):
-            self.log_write(f"[red]⚑ {label}: {status}[/]")
+            self.log_write(f"[red]⚑ {escape(label)}: {escape(status)}[/]")
 
     # ── overview ──
     def log_write(self, msg):
@@ -312,7 +313,7 @@ class FilterScope(App):
                        if n else f"[green]✓ scan done — no clear interference · score {an['score']}[/]")
         transient = [d for d, r in report["sites"].items() if r.get("transient")]
         if transient:
-            self.log_write(f"[yellow]↺ transient, dropped: {', '.join(transient)}[/]")
+            self.log_write(f"[yellow]↺ transient, dropped: {escape(', '.join(transient))}[/]")
         self.notify(f"score {an['score']}/100 · {an['level']} · {n} signals", title="scan done",
                     severity="error" if an["level"] in ("heavy", "severe") else ("warning" if n else "information"))
         self.load_history()
@@ -381,9 +382,9 @@ class FilterScope(App):
             self.notify("no finished report yet", severity="warning")
             return
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        base = os.path.join(self.outdir, f"filterscope-{self.report['net'].get('label') or self.report['net']['id']}-{stamp}")
+        base = os.path.join(self.outdir, f"filterscope-{core.safe_name(self.report['net'].get('label') or self.report['net']['id'])}-{stamp}")
         scan.write_outputs(self.report, json_path=base + ".json", html_path=base + ".html", history=False)
-        self.log_write(f"[green]saved {base}.json / .html[/]")
+        self.log_write(f"[green]saved {escape(base)}.json / .html[/]")
         self.notify(f"saved {os.path.basename(base)}.json / .html")
 
     def action_compare_prev(self):
@@ -397,9 +398,9 @@ class FilterScope(App):
         d = analysis.diff(older, self.report)
         self.log_write(f"[bold]vs {older['ts']}[/] score {d['score_old']} → {d['score_new']}")
         for x in d["added"]:
-            self.log_write(f"  [red]+ new block: {x}[/]")
+            self.log_write(f"  [red]+ new block: {escape(x)}[/]")
         for x in d["removed"]:
-            self.log_write(f"  [green]- lifted: {x}[/]")
+            self.log_write(f"  [green]- lifted: {escape(x)}[/]")
         if not d["added"] and not d["removed"]:
             self.log_write("  [dim]no change[/]")
         self.query_one(TabbedContent).active = "overview"
@@ -446,7 +447,7 @@ class FilterScope(App):
                 dom, ok, res = a
                 cft(self.update_site_silent, dom, res)
                 if not ok:
-                    cft(self.log_write, f"[yellow]↺ {dom}: not reproduced on retry — dropped[/]")
+                    cft(self.log_write, f"[yellow]↺ {escape(dom)}: not reproduced on retry — dropped[/]")
             elif ev == "tor":
                 v = a[0]["verdict"]
                 cft(self.update_row, "Tor bootstrap",

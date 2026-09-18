@@ -12,6 +12,7 @@
 <style>
 :root{--bg:#0b1020;--fg:#e8ecf5;--mut:#9aa4bd;--acc:#5b8cff;--acc2:#8ab4f8;--ok:#3ddc84;--bad:#ff6b6b;--warn:#ffb74d;--card:#131a2e;--line:#22304f;--r:14px}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
+html,body{overflow-x:hidden;max-width:100%}
 body{margin:0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
 a{color:var(--acc2)}
 .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
@@ -60,7 +61,10 @@ footer{padding:40px 0 60px;color:var(--mut);font-size:14px;border-top:1px solid 
 .lang button.on{color:var(--fg);border-color:var(--acc)}
 [data-tr]{display:none}html[lang="tr"] [data-en]{display:none}html[lang="tr"] [data-tr]{display:revert}
 html[lang="tr"] span[data-tr],html[lang="tr"] a[data-tr],html[lang="tr"] b[data-tr]{display:inline}
-.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;word-break:break-all}
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.verdict{max-width:100%}
+header.hero{min-height:min(88vh,900px)}
 </style>
 </head>
 <body>
@@ -138,7 +142,7 @@ html[lang="tr"] span[data-tr],html[lang="tr"] a[data-tr],html[lang="tr"] b[data-
 <section id="downloads">
   <h2 data-en>Downloads</h2><h2 data-tr>İndir</h2>
   <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.2.0</b> · <a id="sums" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
-  <table id="dl">
+  <div class="tablewrap"><table id="dl">
     <thead><tr><th data-en>Platform</th><th data-tr>Platform</th><th data-en>File</th><th data-tr>Dosya</th><th data-en>Notes</th><th data-tr>Not</th></tr></thead>
     <tbody>
       <tr><td>Windows</td><td><a class="dl" data-asset="filterscope-setup-" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-setup-&lt;version&gt;.exe</a></td><td data-en>Installer. Start-menu shortcut, no admin needed. SmartScreen will warn (unsigned) — “More info → Run anyway”.</td><td data-tr>Kurulum. Başlat menüsü kısayolu, yönetici gerekmez. SmartScreen uyarır (imzasız) — “Daha fazla bilgi → Yine de çalıştır”.</td></tr>
@@ -148,7 +152,7 @@ html[lang="tr"] span[data-tr],html[lang="tr"] a[data-tr],html[lang="tr"] b[data-
       <tr><td>macOS (Apple silicon)</td><td><a class="dl" data-asset="filterscope-gui-macos-arm64.app.zip" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-macos-arm64.app.zip">filterscope-gui-macos-arm64.app.zip</a></td><td data-en>Unzip, right-click → Open the first time (unsigned). Intel Macs: Python install below.</td><td data-tr>Aç, ilk seferde sağ tık → Aç (imzasız). Intel Mac: aşağıdaki Python kurulumu.</td></tr>
       <tr><td>Python 3.10+</td><td class="mono">pipx install git+https://github.com/tunnelmoth/filterscope</td><td data-en>Any OS. <span class="mono">filterscope</span> (TUI), <span class="mono">filterscope gui</span>, <span class="mono">filterscope scan --html report.html</span></td><td data-tr>Her OS. <span class="mono">filterscope</span> (TUI), <span class="mono">filterscope gui</span>, <span class="mono">filterscope scan --html rapor.html</span></td></tr>
     </tbody>
-  </table>
+  </table></div>
   <p class="note" style="margin-top:16px" data-en><b>Verify what you download.</b> Compare the file's SHA-256 with <span class="mono">SHA256SUMS.txt</span> from the same release. The binaries are unsigned; the release page and its checksums are the source of truth.</p>
   <p class="note" style="margin-top:16px" data-tr><b>İndirdiğini doğrula.</b> Dosyanın SHA-256'sını aynı sürümdeki <span class="mono">SHA256SUMS.txt</span> ile karşılaştır. İkili dosyalar imzasız; gerçek kaynak release sayfası ve sağlama toplamlarıdır.</p>
 </section>

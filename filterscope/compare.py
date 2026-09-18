@@ -9,7 +9,7 @@ import json
 from rich.console import Console
 from rich.markup import escape
 
-from . import core
+from . import analysis, core
 
 console = Console(highlight=False)
 
@@ -42,6 +42,13 @@ def blocked_set(r):
         s.add("dns-53 intercepted")
     if r.get("http_proxy", {}).get("verdict") == "PROXY":
         s.add("http transparent proxy")
+    for d, x in r.get("tls_intercept", {}).items():
+        if x.get("verdict", "").startswith("TLS-MITM"):
+            s.add(f"tls-mitm {d}")
+    if r.get("nxdomain", {}).get("verdict") == "NXDOMAIN-HIJACK":
+        s.add("nxdomain hijack")
+    if r.get("url_filter", {}).get("verdict") == "URL-KEYWORD-FILTER":
+        s.add("url keyword filter")
     return s
 
 
@@ -56,7 +63,10 @@ def compare(path_a, path_b) -> int:
     A, B = blocked_set(a), blocked_set(b)
     only_a, only_b, both = sorted(A - B), sorted(B - A), sorted(A & B)
 
-    console.print(f"\n[bold]  COMPARISON: {na}  ↔  {nb}[/]  [dim]{a.get('ts', '')} vs {b.get('ts', '')}[/]\n")
+    sa = a.get("analysis", {}).get("score", analysis.score(a))
+    sb = b.get("analysis", {}).get("score", analysis.score(b))
+    console.print(f"\n[bold]  COMPARISON: {na}  ↔  {nb}[/]  [dim]{a.get('ts', '')} vs {b.get('ts', '')}[/]")
+    console.print(f"[dim]  score {na}: {sa}/100   score {nb}: {sb}/100[/]\n")
     for title, items in ((f"⚑ Blocked only on '{na}'", only_a), (f"⚑ Blocked only on '{nb}'", only_b)):
         console.print(f"[bold red]  {title} ({len(items)}):[/]" if items else f"[dim]  {title} (0)[/]")
         for x in items:

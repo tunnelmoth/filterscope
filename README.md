@@ -6,6 +6,21 @@ Measure the **filtering / censorship** behaviour of the network you are on — l
 
 Works on **Linux, Windows and macOS**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 
+```
+╭───────────────────────────── filtering analysis ─────────────────────────────╮
+│   17/100   █████░░░░░░░░░░░░░░░░░░░░░░░░░   LIGHT   confidence high          │
+│                                                                              │
+│ school shows light filtering (score 17/100). 4 of 58 sites are affected,     │
+│ mostly chat (1/1), vpn-info (1/1), vpn-api (2/5). Techniques: TLS            │
+│ server-name inspection, HTTP block page. The filter is application-layer     │
+│ only; SNI-hiding tunnels and ECH get through.                                │
+│                                                                              │
+│ techniques: SNI-DPI (TLS server-name inspection) · block-page (HTTP block    │
+│ page)                                                                        │
+│ vantage: TR via Cloudflare FRA                                               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
 ## What it measures
 
 | Probe | How |
@@ -13,23 +28,28 @@ Works on **Linux, Windows and macOS**. Single-file binaries on the [releases pag
 | **DNS tampering / hijack** | System resolver and direct `@8.8.8.8` are compared with DoH as the reference. Only private-IP redirection and NXDOMAIN injection are flagged; a mere IP difference is treated as CDN (low false-positive rate). |
 | **TLS / SNI blocking (DPI)** | TLS to the real IP with the real server name vs. a harmless control name. Reset/timeout only with the real name = SNI-based deep packet inspection. |
 | **In-path RST injection** | Time-to-RST is compared with the TCP round trip. An RST that arrives faster than a round trip was injected by a middlebox, not sent by the server. |
+| **TLS interception (MITM)** | Verified handshakes against the Mozilla CA bundle for four large public sites. A chain signed by a private issuer means the network decrypts HTTPS with its own CA. |
 | **Block page** | Signatures of BTK/5651, FortiGuard, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, GoGuardian, Netsweeper, Smoothwall, Palo Alto, Zscaler, Forcepoint, Barracuda… |
 | **Outbound TCP ports** | Via `portquiz.net` (listens on every port). `timeout` = packets dropped (real block); `refused`/`RST` = the packet got out. |
 | **UDP egress** | STUN binding requests to several servers/ports (indicator for WireGuard / IPsec). |
-| **QUIC / UDP-443** | A QUIC version-negotiation probe (RFC 9000 §6) to Cloudflare and Google — no crypto, unambiguous. Tells you if HTTP/3 and QUIC tunnels can leave the network. |
+| **QUIC / UDP-443** | A QUIC version-negotiation probe (RFC 9000 §6) to Cloudflare and Google — no crypto, unambiguous. |
 | **Encrypted DNS** | Is DoH (Cloudflare, Google, AdGuard) / DoT (Cloudflare, Google, Quad9) itself reachable. |
-| **Port-53 interception** | A plain DNS query is sent to `192.0.2.1` (TEST-NET-1, cannot run a resolver). Any answer proves the network transparently proxies DNS — "just use 8.8.8.8" does nothing there. |
+| **Port-53 interception** | A plain DNS query is sent to `192.0.2.1` (TEST-NET-1, cannot run a resolver). Any answer proves the network transparently proxies DNS. |
+| **NXDOMAIN hijack** | A random non-existent name under `example.com` must not resolve. |
 | **HTTP transparent proxy** | Filter-appliance headers (`Via`, `X-Squid-*`, BlueCoat, FortiGate, Sophos…) on a neutral plain-HTTP fetch. |
+| **URL keyword filter** | Benign words (vpn, proxy, tor, torrent…) in a query string to `example.com` must be served identically to a control word. |
 | **ECH / encrypted SNI** | Does the site publish `ech` in its HTTPS record? Combined with SNI-DPI detection it infers "this block is bypassable with ECH". |
-| **IPv6 egress**, **SSH egress**, **throughput** (`--speed`) | |
+| **IPv6 egress**, **SSH egress**, **throughput** (`--speed`), **vantage point** (country / Cloudflare colo) | |
 | **VPN diagnosis** | Are VPN sites/APIs (Proton, Mullvad, Nord, Windscribe, AirVPN) blocked at the SNI layer — explains why an app fails at login, and what to do. |
 | **Tor** | A real `tor` bootstrap to 100 %. |
 
-Every finding feeds a **VPN diagnosis** and a **tunnel / circumvention** advice block, plus an evidence trail (JSON, anonymized JSON, HTML, time-series history).
+**Verification**: every positive site result is re-tested once; a result that does not reproduce is marked *transient* and dropped.
+
+**Analysis**: a filtering score (0–100, clean → severe), the techniques in use, a vendor signature guess, impact by category, confidence, and a plain-English verdict. Every finding feeds the VPN diagnosis and tunnel/circumvention advice.
 
 ## Install
 
-**Binary** (no Python needed): download `filterscope-windows-x86_64.exe`, `filterscope-linux-x86_64`, `filterscope-macos-arm64` or `filterscope-macos-x86_64` from [releases](https://github.com/tunnelmoth/filterscope/releases). Verify with `SHA256SUMS.txt`.
+**Binary** (no Python needed): download `filterscope-windows-x86_64.exe`, `filterscope-linux-x86_64` or `filterscope-macos-arm64` from [releases](https://github.com/tunnelmoth/filterscope/releases). Verify with `SHA256SUMS.txt`. Intel Macs: use the Python install below.
 
 **Python** (3.10+):
 
@@ -42,16 +62,24 @@ The Tor test needs a `tor` binary: `apt/pacman/brew install tor`, or on Windows 
 ## Usage
 
 ```bash
-filterscope                                  # live TUI dashboard (r rescan, t Tor, s save, q quit)
-filterscope scan                             # full CLI scan; exit code 2 if interference found
-filterscope scan --quick                     # sites + ports + UDP + DNS only, no Tor/ECH/block-page
+filterscope                                  # live TUI: tabs, score, filter, detail, compare, save
+filterscope scan                             # full CLI scan with progress; exit code 2 if interference
+filterscope scan --profile quick             # sites + ports + UDP/QUIC + DNS, no Tor/MITM/proxy probes
+filterscope scan --profile school            # categories a school filter usually touches
 filterscope scan --categories ai,vpn-api     # scope to categories (filterscope categories lists them)
 filterscope scan --domain example.org        # add your own domains (--domains-file too)
 filterscope scan --label school --json school.json --html school.html
 filterscope scan --anon-json share.json      # PII-free shareable report
-filterscope scan --speed                     # also measure downstream throughput
+filterscope scan --format json > r.json      # machine-readable to stdout
+filterscope scan --watch 30                  # re-scan every 30 min, print what changed
+filterscope scan --flagged-only --speed      # only affected sites in the table; measure throughput
 filterscope report school.json               # re-render a saved JSON (or --html out.html)
+filterscope config set label school          # persistent defaults (timeout, categories, domains, …)
 ```
+
+### TUI keys
+
+`r` rescan · `t` toggle Tor · `s` save JSON+HTML · `/` filter sites · `f` affected only · `c` compare with previous scan · `1-5` tabs · `q` quit
 
 ### Evidence: two networks, one diff
 
@@ -65,15 +93,16 @@ Anything blocked on one network but open on the other is filtering **specific to
 
 ### Evidence over time
 
-Every scan appends a compact record to `~/.filterscope/history.jsonl`.
+Every scan appends a record to `~/.filterscope/history.jsonl` and stores the full report under `~/.filterscope/reports/`.
 
 ```cron
-*/30 * * * * filterscope scan --no-tor --label school --quiet >> ~/.filterscope/run.log 2>&1
+*/30 * * * * filterscope scan --no-tor --label school --format summary >> ~/.filterscope/run.log 2>&1
 ```
 
 ```bash
-filterscope history                          # timeline + "new block / lifted" per network
-filterscope history --network school --last 10
+filterscope history                          # timeline + "new block / lifted" per network, with scores
+filterscope history --html timeline.html     # sparkline timeline
+filterscope diff                             # last two stored scans of this network
 ```
 
 ### Does my VPN work here?
@@ -95,19 +124,22 @@ On Windows and macOS use the official 1.1.1.1 app and pick MASQUE in its setting
 
 ## Interpreting results
 
-- **SNI-DPI** — the network reads the server name in the TLS ClientHello and resets specific sites. Application-layer content filter. If the note says *in-path injection*, the RST came from a middlebox, not the server.
+- **SNI-DPI** — the network reads the server name in the TLS ClientHello and resets specific sites. If the note says *in-path injection*, the RST came from a middlebox, not the server.
+- **TLS-MITM** — HTTPS is decrypted by the network with its own CA. Assume every page and login is readable by the operator.
 - **HIJACK-blockpage** — DNS answers with a private/local IP (a block-page server).
 - **DNS-BLOCK** — the local resolver returns nothing while DoH resolves.
 - **INTERCEPTED** (port 53) — the network answers DNS on behalf of every address; changing your resolver to 8.8.8.8 is ignored.
+- **NXDOMAIN-HIJACK** — non-existent names resolve (search redirect / ad injection).
 - **BLOCKED** on DoH/DoT — encrypted DNS is blocked; apps using it (Firefox DoH, Android Private DNS) fail.
 - **BLOCKED** on a port / QUIC / UDP — packets to that port are dropped.
-- **PROXY** — a transparent HTTP proxy or filter appliance is rewriting plain HTTP.
+- **PROXY** / **URL-KEYWORD-FILTER** — a transparent HTTP proxy or filter appliance is rewriting plain HTTP.
+- **Score**: 0 clean · 1–19 light · 20–44 moderate · 45–69 heavy · 70+ severe.
 
 To argue that filtering is improper: keep the timestamped JSON, run the same scan on **a different network** and show the diff. The HTML report is self-contained and printable.
 
 ## JSON schema
 
-`schema: 2`. Top level: `ts`, `version`, `net` (id/label/ssid/gateway/resolver/os), `sites{domain: {cat, dns, sni, blockpage, ech}}`, `ports`, `udp`, `udp_detail`, `quic`, `quic_detail`, `ipv6`, `dns_encrypted`, `dns_intercept`, `http_proxy`, `ssh`, `tor`, `speed`, `flagged[]`. The anonymized variant drops `net.*` except id/label, resolver answers and proxy headers.
+`schema: 3`. Top level: `ts`, `version`, `net` (id/label/ssid/gateway/resolver/os), `geo`, `sites{domain: {cat, dns, sni, blockpage, ech, ms, confirmed?, transient?}}`, `ports`, `udp`, `udp_detail`, `quic`, `quic_detail`, `ipv6`, `dns_encrypted`, `dns_intercept`, `nxdomain`, `http_proxy`, `url_filter`, `tls_intercept`, `ssh`, `tor`, `speed`, `timings`, `flagged[]`, `analysis{score, level, techniques, vendor, categories, confidence, summary}`. The anonymized variant drops `net.*` except id/label, the public IP, resolver answers and proxy headers.
 
 ## Development
 
@@ -121,10 +153,11 @@ CI runs the tests on Linux, Windows and macOS; a `v*` tag builds and publishes t
 
 ## Roadmap
 
-- [x] Evidence mode: time-series + change tracking
-- [x] Network comparison, anonymized reports, HTML report
+- [x] Evidence mode: time-series + change tracking, stored reports, diff, watch
+- [x] Network comparison, anonymized reports, HTML report with score gauge
 - [x] ECH detection + bypass inference, real WireGuard handshake test
-- [x] Encrypted DNS, DNS interception, QUIC, transparent proxy, RST injection timing
+- [x] Encrypted DNS, DNS interception, NXDOMAIN hijack, QUIC, transparent proxy, URL keyword filter, RST injection timing, TLS interception
+- [x] Analysis engine: score, techniques, vendor signature, verification pass
 - [x] Windows / macOS, single-file binaries
 - [ ] DoQ (DNS over QUIC) and HTTP/3 page fetch
 - [ ] Opt-in anonymous aggregate report server

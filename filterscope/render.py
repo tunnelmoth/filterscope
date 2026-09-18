@@ -1,23 +1,28 @@
 """Console rendering (rich) — works on Linux, macOS and the Windows console."""
 from __future__ import annotations
 
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
 from rich.markup import escape
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import core, sysinfo
+from . import analysis, core, sysinfo
 
 console = Console(highlight=False)
 
-NEUTRAL_YELLOW = ("?", "no-dns", "unreachable", "unavailable", "skipped", "refused")
+NEUTRAL_YELLOW = ("?", "no-dns", "unreachable", "unavailable", "skipped", "refused", "tor-missing")
+LEVEL_STYLE = {"clean": "bold green", "light": "yellow", "moderate": "bold yellow",
+               "heavy": "bold red", "severe": "bold white on red"}
+LEVEL_BORDER = {"clean": "green", "light": "yellow", "moderate": "yellow", "heavy": "red", "severe": "red"}
 
 
 def verdict_text(v, good=("ok", "open")) -> Text:
     v = v or "—"
     if v in good or v.startswith("open") or v.startswith("passed"):
         return Text(v, style="bold green")
-    if v in NEUTRAL_YELLOW or v.startswith(("error", "tls-error", "bad-reply", "responded")):
+    if v in NEUTRAL_YELLOW or v.startswith(("error", "tls-error", "bad-reply", "responded", "testing")):
         return Text(v, style="yellow")
     return Text(v, style="bold red")
 
@@ -30,31 +35,102 @@ def ech_text(e) -> Text:
     return Text("?", style="dim")
 
 
-def site_table(sites: dict) -> Table:
-    t = Table(title="DNS / TLS-SNI / Block page / ECH", title_style="bold blue",
-              show_lines=False, pad_edge=False)
+def site_flagged(d) -> bool:
+    return any(d[k]["verdict"] not in core.NEUTRAL for k in ("dns", "sni", "blockpage"))
+
+
+def site_notes(d) -> str:
+    notes = []
+    if d["sni"]["verdict"] == "SNI-DPI" and d.get("ech"):
+        notes.append("ECH can bypass this")
+    if d["sni"].get("injected"):
+        notes.append("RST injected in-path")
+    if d.get("confirmed"):
+        notes.append("confirmed on retry")
+    for tag, r in (("dns", d["dns"]), ("sni", d["sni"]), ("bp", d["blockpage"])):
+        note = r.get("note") or r.get("detail")
+        if note and r.get("verdict") != "ok" and note != "skipped":
+            notes.append(f"{tag}: {note}")
+    return "; ".join(notes)
+
+
+def score_bar(score: int, width=30) -> Text:
+    filled = int(round(width * score / 100))
+    style = LEVEL_STYLE[analysis.level(score)]
+    t = Text()
+    t.append("█" * filled, style=style)
+    t.append("░" * (width - filled), style="dim")
+    return t
+
+
+def analysis_panel(report) -> Panel:
+    an = report.get("analysis") or analysis.analyze(report)
+    lvl = an["level"]
+    head = Text()
+    head.append(f" {an['score']:>3}/100 ", style=LEVEL_STYLE[lvl])
+    head.append("  ")
+    head.append_text(score_bar(an["score"]))
+    head.append(f"   {lvl.upper()}", style=LEVEL_STYLE[lvl])
+    head.append(f"   confidence {an['confidence']}", style="dim")
+    lines = [head, Text(""), Text(an["summary"])]
+    if an["techniques"]:
+        t = Text("\ntechniques: ", style="dim")
+        for i, k in enumerate(an["techniques"]):
+            t.append(k, style="bold red")
+            t.append(f" ({an['technique_labels'][k]})", style="dim")
+            if i < len(an["techniques"]) - 1:
+                t.append(" · ", style="dim")
+        lines.append(t)
+    if an["vendor"]:
+        lines.append(Text(f"vendor signature: {an['vendor']}", style="magenta"))
+    geo = report.get("geo") or {}
+    if geo.get("country"):
+        lines.append(Text(f"vantage: {geo['country']} via Cloudflare {geo.get('colo', '?')}"
+                          + ("  (WARP on)" if geo.get("warp") in ("on", "plus") else ""), style="dim"))
+    return Panel(Group(*lines), title="[bold]filtering analysis[/]", border_style=LEVEL_BORDER[lvl], box=box.ROUNDED)
+
+
+def category_table(report) -> Table:
+    an = report.get("analysis") or analysis.analyze(report)
+    t = Table(title="impact by category", title_style="bold blue", box=box.SIMPLE_HEAD, pad_edge=False)
+    t.add_column("category", style="cyan")
+    t.add_column("blocked", justify="right")
+    t.add_column("of", justify="right", style="dim")
+    t.add_column("bar")
+    t.add_column("domains", style="dim")
+    for r in an["categories"]:
+        if not r["blocked"]:
+            continue
+        n = int(round(10 * r["blocked"] / max(r["total"], 1)))
+        bar = Text("▮" * n, style="red") + Text("▯" * (10 - n), style="dim")
+        t.add_row(r["category"], str(r["blocked"]), str(r["total"]), bar, ", ".join(r["domains"][:4]))
+    if t.row_count == 0:
+        t.add_row("—", "0", str(sum(r["total"] for r in an["categories"])), Text("▯" * 10, style="dim"), "nothing blocked")
+    return t
+
+
+def site_table(sites: dict, only_flagged=False) -> Table:
+    t = Table(title="sites — DNS / TLS-SNI / block page / ECH", title_style="bold blue",
+              box=box.SIMPLE_HEAD, pad_edge=False)
     t.add_column("category/site", style="cyan", no_wrap=True)
     t.add_column("DNS")
     t.add_column("TLS/SNI")
     t.add_column("block")
     t.add_column("ECH")
+    t.add_column("ms", justify="right", style="dim")
     t.add_column("note", style="dim")
-    for dom, d in sorted(sites.items(), key=lambda kv: kv[1]["cat"]):
-        notes = []
-        if d["sni"]["verdict"] == "SNI-DPI" and d.get("ech"):
-            notes.append("[green]ECH can bypass this[/]")
-        for tag, r in (("dns", d["dns"]), ("sni", d["sni"]), ("bp", d["blockpage"])):
-            note = r.get("note") or r.get("detail")
-            if note and r.get("verdict") != "ok" and note != "skipped":
-                notes.append(escape(f"{tag}: {note}"))
+    rows = sorted(sites.items(), key=lambda kv: (not site_flagged(kv[1]), kv[1]["cat"]))
+    for dom, d in rows:
+        if only_flagged and not site_flagged(d):
+            continue
         t.add_row(d["cat"], verdict_text(d["dns"]["verdict"]), verdict_text(d["sni"]["verdict"]),
                   verdict_text(d["blockpage"]["verdict"]), ech_text(d.get("ech")),
-                  Text.from_markup("; ".join(notes)))
+                  str(d.get("ms", "")), Text(site_notes(d)))
     return t
 
 
 def kv_table(title, rows, key_hdr="probe", val_hdr="status") -> Table:
-    t = Table(title=title, title_style="bold blue", pad_edge=False)
+    t = Table(title=title, title_style="bold blue", box=box.SIMPLE_HEAD, pad_edge=False)
     t.add_column(key_hdr, style="cyan", no_wrap=True)
     t.add_column(val_hdr)
     t.add_column("detail", style="dim")
@@ -63,83 +139,109 @@ def kv_table(title, rows, key_hdr="probe", val_hdr="status") -> Table:
     return t
 
 
+def egress_rows(report):
+    misc = [(f"UDP STUN {k}", v, "") for k, v in sorted(report.get("udp_detail", {}).items())]
+    misc += [(f"QUIC {k}", v, "") for k, v in sorted(report.get("quic_detail", {}).items())]
+    if report.get("ipv6"):
+        misc.append(("IPv6 egress", report["ipv6"]["verdict"], report["ipv6"]["detail"]))
+    if report.get("ssh"):
+        misc.append(("SSH egress (22)", report["ssh"], ""))
+    return misc
+
+
+def dns_rows(report):
+    rows = [(k, v, "") for k, v in sorted(report.get("dns_encrypted", {}).items())]
+    if report.get("dns_intercept"):
+        rows.append(("port-53 interception", report["dns_intercept"]["verdict"], report["dns_intercept"]["detail"]))
+    if report.get("nxdomain"):
+        rows.append(("NXDOMAIN hijack", report["nxdomain"]["verdict"], report["nxdomain"]["detail"]))
+    return rows
+
+
+def http_rows(report):
+    rows = []
+    if report.get("http_proxy"):
+        rows.append(("transparent HTTP proxy", report["http_proxy"]["verdict"], report["http_proxy"]["detail"]))
+    if report.get("url_filter"):
+        rows.append(("URL keyword filter", report["url_filter"]["verdict"], report["url_filter"]["detail"]))
+    for dom, r in sorted(report.get("tls_intercept", {}).items()):
+        rows.append((f"TLS chain {dom}", r["verdict"], r.get("detail") or f"issuer {r.get('issuer', '?')}"))
+    if report.get("speed"):
+        sp = report["speed"]
+        rows.append(("downstream", f"{sp.get('mbps', 0)} Mbit/s", sp.get("detail", "")))
+    if report.get("tor"):
+        rows.append(("Tor bootstrap", report["tor"]["verdict"], report["tor"]["detail"]))
+    return rows
+
+
 def print_header(report):
     fp = report["net"]
-    console.print(f"\n[bold]  NETWORK FILTERING TEST[/] [dim]({report['ts']})  filterscope {report.get('version', '')}[/]")
+    console.print(f"\n[bold]  NETWORK FILTERING TEST[/] [dim]({report.get('ts', '')})  filterscope {report.get('version', '')}[/]")
     console.print(f"[dim]  network: {sysinfo.net_name(fp)}  [id {fp['id']}]  gw {fp.get('gateway') or '?'}  "
                   f"resolver {fp.get('resolver') or '?'}  {fp.get('os', '')}[/]")
     console.print("[dim]  your own traffic, clean allowlist — no inappropriate sites pinged[/]\n")
 
 
-def print_report(report):
+def print_report(report, only_flagged=False):
     """Full static rendering of a finished report."""
     print_header(report)
-    if report["sites"]:
-        console.print(site_table(report["sites"]))
+    console.print(analysis_panel(report))
+    console.print()
+    if report.get("sites"):
+        console.print(category_table(report))
+        console.print(site_table(report["sites"], only_flagged))
         console.print()
-    if report["ports"]:
-        rows = [(l, s, "") for l, s in sorted(report["ports"].items())]
-        console.print(kv_table("Outbound TCP ports (portquiz.net)", rows, "port"))
-        console.print()
-    misc = []
-    for k, v in sorted(report.get("udp_detail", {}).items()):
-        misc.append((f"UDP STUN {k}", v, ""))
-    for k, v in sorted(report.get("quic_detail", {}).items()):
-        misc.append((f"QUIC {k}", v, ""))
-    if report.get("ipv6"):
-        misc.append(("IPv6 egress", report["ipv6"]["verdict"], report["ipv6"]["detail"]))
-    if misc:
-        console.print(kv_table("UDP / QUIC / IPv6 egress", misc))
-        console.print()
-    dnsrows = [(k, v, "") for k, v in sorted(report.get("dns_encrypted", {}).items())]
-    if report.get("dns_intercept"):
-        di = report["dns_intercept"]
-        dnsrows.append(("port-53 interception", di["verdict"], di["detail"]))
-    if dnsrows:
-        console.print(kv_table("Encrypted DNS / interception", dnsrows))
-        console.print()
-    other = []
-    if report.get("http_proxy"):
-        hp = report["http_proxy"]
-        other.append(("HTTP transparent proxy", hp["verdict"], hp["detail"]))
-    if report.get("ssh"):
-        other.append(("SSH egress (22)", report["ssh"], ""))
-    if report.get("speed"):
-        sp = report["speed"]
-        other.append(("downstream", f"{sp.get('mbps', 0)} Mbit/s", sp.get("detail", "")))
-    if report.get("tor"):
-        other.append(("Tor bootstrap", report["tor"]["verdict"], report["tor"]["detail"]))
-    if other:
-        console.print(kv_table("Proxy / SSH / Tor", other))
-        console.print()
-    print_summary(report)
+    if report.get("ports"):
+        console.print(kv_table("outbound TCP ports (portquiz.net)",
+                               [(l, s, "") for l, s in sorted(report["ports"].items())], "port"))
+    if egress_rows(report):
+        console.print(kv_table("UDP / QUIC / IPv6 / SSH egress", egress_rows(report)))
+    if dns_rows(report):
+        console.print(kv_table("DNS integrity", dns_rows(report)))
+    if http_rows(report):
+        console.print(kv_table("HTTP / TLS / Tor", http_rows(report)))
+    print_summary(report, with_analysis=False)
 
 
-def print_summary(report):
-    console.print("[bold]  ── SUMMARY ──[/]")
+def print_summary(report, with_analysis=True):
+    if with_analysis:
+        console.print(analysis_panel(report))
     fl = report.get("flagged") or core.flagged(report)
     if fl:
-        console.print(f"[bold red]  ⚑ {len(fl)} interference signals:[/]")
+        console.print(f"\n[bold red]  ⚑ {len(fl)} interference signals[/]")
         for f in fl:
             console.print(f"     {escape(f)}")
     else:
-        console.print("[bold green]  No clear interference detected.[/]")
-    ech_bypass = [dom for dom, d in report["sites"].items()
+        console.print("\n[bold green]  No clear interference detected.[/]")
+    ech_bypass = [dom for dom, d in report.get("sites", {}).items()
                   if d["sni"]["verdict"] == "SNI-DPI" and d.get("ech")]
     if ech_bypass:
-        console.print("[green]  ⓘ Reachable via ECH (SNI-DPI bypassed):[/] " + ", ".join(ech_bypass))
-    injected = [dom for dom, d in report["sites"].items() if d["sni"].get("injected")]
-    if injected:
-        console.print("[yellow]  ⓘ RST injected by an in-path middlebox (faster than server RTT):[/] "
-                      + ", ".join(injected))
-
+        console.print("[green]  ⓘ reachable via ECH (SNI-DPI bypassed):[/] " + ", ".join(ech_bypass))
+    transient = [dom for dom, d in report.get("sites", {}).items() if d.get("transient")]
+    if transient:
+        console.print("[yellow]  ⓘ transient (not reproduced on retry, ignored):[/] " + ", ".join(transient))
     console.print("\n[bold]  ── VPN DIAGNOSIS ──[/]")
     for c, line in core.vpn_advice(report):
         console.print(_c(c, "  " + line))
     console.print("\n[bold]  ── TUNNEL / CIRCUMVENTION ──[/]")
     for c, line in core.tunnel_advice(report):
         console.print(_c(c, "  " + line))
+    tm = report.get("timings", {})
+    if tm.get("total_ms"):
+        console.print(f"\n[dim]  scan {tm['total_ms'] / 1000:.1f}s "
+                      f"(probes {tm.get('probes_ms', 0) / 1000:.1f}s, verify {tm.get('verify_ms', 0) / 1000:.1f}s"
+                      + (f", tor {tm['tor_ms'] / 1000:.0f}s" if tm.get("tor_ms") else "") + ")[/]")
     console.print()
+
+
+def print_diff(d: dict, old_ts: str, new_ts: str):
+    console.print(f"\n[bold]  CHANGES[/] [dim]{old_ts} → {new_ts}[/]  score {d['score_old']} → {d['score_new']}")
+    for x in d["added"]:
+        console.print(f"     [red]+ new block: {escape(x)}[/]")
+    for x in d["removed"]:
+        console.print(f"     [green]- lifted:    {escape(x)}[/]")
+    if not d["added"] and not d["removed"]:
+        console.print("     [dim](no change)[/]")
 
 
 _STYLE = {"g": "green", "r": "red", "y": "yellow", "d": "dim", "b": "blue"}

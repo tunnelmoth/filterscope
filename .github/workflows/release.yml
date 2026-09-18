@@ -48,9 +48,7 @@ jobs:
           - os: macos-14
             asset: filterscope-macos-arm64
             built: dist/filterscope
-          - os: macos-13
-            asset: filterscope-macos-x86_64
-            built: dist/filterscope
+          # macos-13 (Intel) runners are retired on GitHub; Intel Macs: pip/pipx install.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

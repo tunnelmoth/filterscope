@@ -1,127 +1,161 @@
 """filterscope command line.
 
-  filterscope                       live TUI
-  filterscope scan [opts]           CLI scan (streams results, exit 2 on interference)
-  filterscope compare A.json B.json
-  filterscope history [--last N] [--network X]
-  filterscope wg --config wg0.conf  real WireGuard handshake test
-  filterscope warp ...              Cloudflare WARP tunnel manager (Linux)
-  filterscope report scan.json --html out.html   re-render a saved JSON
-  filterscope categories            list site categories
+  filterscope                          live TUI
+  filterscope scan [opts]              CLI scan with progress; exit 2 on interference
+  filterscope scan --watch 30          re-scan every 30 min, print what changed
+  filterscope compare A.json B.json    diff two reports (school vs mobile)
+  filterscope diff                     this network: latest stored report vs the one before
+  filterscope history [--html out]     evidence timeline
+  filterscope report scan.json         re-render a saved JSON (or --html out.html)
+  filterscope config [set K V]         show / edit ~/.filterscope/config.json
+  filterscope wg --config wg0.conf     real WireGuard handshake test
+  filterscope warp ...                 Cloudflare WARP tunnel manager (Linux)
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+import time
 
-from . import __version__, core, scan, sysinfo
+from . import __version__, analysis, config, core, scan, sysinfo
 
 
 def _scan_opts(a) -> scan.ScanOptions:
-    steps = tuple(s.strip() for s in a.only.split(",")) if a.only else scan.ALL_STEPS
-    cats = [c for c in (a.categories or "").split(",") if c]
+    cfg = config.load()
     doms = list(a.domain or [])
     if a.domains_file:
         with open(a.domains_file, encoding="utf-8") as f:
             doms += [l.strip() for l in f if l.strip() and not l.startswith("#")]
-    kw = dict(label=a.label, timeout=a.timeout, tor_timeout=a.tor_timeout, tor=not a.no_tor,
-              steps=steps, categories=cats, domains=doms, speed=a.speed, workers=a.workers)
-    if a.quick:
-        return scan.ScanOptions.quick(**{k: v for k, v in kw.items() if k not in ("tor", "steps")})
-    return scan.ScanOptions(**kw)
+    cats = [c for c in (a.categories or "").split(",") if c] or None
+    profile = "quick" if getattr(a, "quick", False) else a.profile
+    opts = scan.ScanOptions.from_config(
+        cfg, profile, label=a.label, timeout=a.timeout, tor_timeout=a.tor_timeout,
+        categories=cats, speed=a.speed or None, workers=a.workers,
+        verify=False if a.no_verify else None)
+    if doms:
+        opts.domains = list(cfg.get("domains") or []) + doms
+    if a.no_tor:
+        opts.tor = False
+    if a.only:
+        opts.steps = tuple(s.strip() for s in a.only.split(",") if s.strip())
+    if a.skip:
+        skip = {s.strip() for s in a.skip.split(",")}
+        opts.steps = tuple(s for s in opts.steps if s not in skip)
+    if getattr(a, "quick", False):
+        opts.ech, opts.blockpage = False, False
+    return opts
 
 
 def add_scan_args(ap, tui=False):
     ap.add_argument("--label", help="network label (e.g. school, mobile)")
-    ap.add_argument("--timeout", type=float, default=6, help="connection timeout (s)")
-    ap.add_argument("--tor-timeout", type=float, default=60, help="tor bootstrap timeout (s)")
+    ap.add_argument("--profile", choices=sorted(config.PROFILES), help="full | quick | school | isp | vpn")
+    ap.add_argument("--quick", action="store_true", help="= --profile quick, minus ECH/block-page fetches")
+    ap.add_argument("--timeout", type=float, help="connection timeout (s), default 6")
+    ap.add_argument("--tor-timeout", type=float, help="tor bootstrap timeout (s), default 60")
     ap.add_argument("--no-tor", action="store_true", help="skip the Tor test")
-    ap.add_argument("--quick", action="store_true", help="sites+ports+udp+dns only, no Tor/ECH/blockpage")
+    ap.add_argument("--no-verify", action="store_true", help="don't re-check positives")
     ap.add_argument("--only", help=f"comma list of steps: {','.join(scan.ALL_STEPS)}")
+    ap.add_argument("--skip", help="comma list of steps to skip")
     ap.add_argument("--categories", help=f"comma list of site categories ({','.join(core.categories())})")
     ap.add_argument("--domain", action="append", help="extra domain to test (repeatable)")
     ap.add_argument("--domains-file", help="file with one extra domain per line")
     ap.add_argument("--speed", action="store_true", help="also measure downstream throughput")
-    ap.add_argument("--workers", type=int, default=8, help="parallel probes")
+    ap.add_argument("--workers", type=int, help="parallel probes (default 12)")
     if not tui:
         ap.add_argument("--json", help="write the full report to a JSON file")
         ap.add_argument("--anon-json", help="write an anonymized (shareable) report")
         ap.add_argument("--html", help="write a self-contained HTML evidence report")
+        ap.add_argument("--format", choices=["rich", "json", "summary"], default="rich",
+                        help="rich (default) | json (report to stdout) | summary (analysis only)")
+        ap.add_argument("--flagged-only", action="store_true", help="site table: only affected sites")
         ap.add_argument("--history", default=sysinfo.HISTORY_PATH, help="evidence history JSONL path")
-        ap.add_argument("--no-history", action="store_true", help="don't append to history")
-        ap.add_argument("--quiet", action="store_true", help="only the summary")
+        ap.add_argument("--no-history", action="store_true", help="don't append to history / store report")
+        ap.add_argument("--watch", type=float, metavar="MIN", help="repeat every MIN minutes, print changes")
+        ap.add_argument("--quiet", action="store_true", help="alias of --format summary")
+
+
+def _run_with_progress(opts, quiet=False):
+    """Scan with a live progress bar; findings are printed as they land."""
+    from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+    from .render import console, escape, verdict_text
+    prog = Progress(SpinnerColumn(), TextColumn("[bold blue]{task.description}"), BarColumn(),
+                    TextColumn("{task.completed}/{task.total}"), TimeElapsedColumn(),
+                    console=console, transient=True)
+    task = prog.add_task("probing", total=1)
+    state = {"tor": False}
+
+    def emit(ev, *x):
+        if ev == "progress":
+            done, total = x
+            prog.update(task, completed=done, total=total,
+                        description="waiting for Tor" if state["tor"] and done == total - 1 else "probing")
+        elif ev == "site" and not quiet:
+            dom, r = x
+            for k in ("dns", "sni", "blockpage"):
+                v = r[k]["verdict"]
+                if v not in core.NEUTRAL:
+                    prog.console.print(f"  [red]⚑[/] {dom:28} {k}=", verdict_text(v),
+                                       f"[dim]{escape(r[k].get('detail', '') or '')}[/]")
+        elif ev in ("port", "udp", "quic", "dns_enc") and not quiet:
+            if x[1].startswith("BLOCKED"):
+                prog.console.print(f"  [red]⚑[/] {x[0]:28} ", verdict_text(x[1]))
+        elif ev in ("dns_int", "http_proxy", "nxdomain", "url_filter", "ipv6") and not quiet:
+            if x[0]["verdict"] not in core.NEUTRAL and x[0]["verdict"] not in ("open",):
+                prog.console.print(f"  [red]⚑[/] {ev:28} ", verdict_text(x[0]["verdict"]), f"[dim]{escape(x[0].get('detail', ''))}[/]")
+        elif ev == "mitm" and not quiet and x[1]["verdict"].startswith("TLS-MITM"):
+            prog.console.print(f"  [red]⚑[/] TLS interception {x[0]:11} ", verdict_text(x[1]["verdict"]), f"[dim]{escape(x[1].get('detail', ''))}[/]")
+        elif ev == "verify_start":
+            prog.update(task, description=f"re-checking {x[0]} positives")
+        elif ev == "verify" and not quiet:
+            dom, ok, r = x
+            if not ok:
+                prog.console.print(f"  [yellow]↺[/] {dom:28} transient, dropped")
+        elif ev == "tor":
+            state["tor"] = False
+        elif ev == "net":
+            state["tor"] = "tor" in opts.steps and opts.tor
+    with prog:
+        return scan.run_scan(opts, emit)
 
 
 def cmd_scan(a) -> int:
-    from .render import console, print_header, print_report, print_summary, verdict_text
+    from .render import console, print_diff, print_header, print_report, print_summary
     opts = _scan_opts(a)
-    quiet = a.quiet
+    fmt = "summary" if a.quiet else a.format
+    prev = None
 
-    def emit(ev, *x):
-        if quiet:
-            if ev == "net":
-                print_header({"net": x[0], "ts": "", "version": __version__})
-            return
-        if ev == "net":
-            print_header({"net": x[0], "ts": __import__("time").strftime("%Y-%m-%d %H:%M:%S"),
+    while True:
+        if fmt == "json":
+            report = scan.run_scan(opts)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print_header({"net": sysinfo.net_fingerprint(opts.label), "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
                           "version": __version__})
-        elif ev == "section":
-            titles = {"sites": "DNS / TLS-SNI / Block page / ECH", "ports": "Outbound TCP ports (portquiz.net)",
-                      "udp": "UDP egress (STUN)", "quic": "QUIC / UDP-443", "ipv6": "IPv6",
-                      "dns": "Encrypted DNS / interception", "proxy": "HTTP transparent proxy",
-                      "ssh": "SSH egress", "speed": "Throughput", "tor": "Tor bootstrap (up to 60s)"}
-            console.print(f"\n[bold blue]  ── {titles.get(x[0], x[0])} ──[/]")
-        elif ev == "site":
-            dom, r = x
-            line = Text_row(dom, r)
-            console.print(line)
-        elif ev in ("port", "udp", "quic", "dns_enc"):
-            console.print(f"  {x[0]:32} ", verdict_text(x[1]))
-        elif ev in ("ipv6", "dns_int", "http_proxy", "tor"):
-            r = x[0]
-            label = {"ipv6": "IPv6 egress (TCP 443)", "dns_int": "port-53 interception",
-                     "http_proxy": "transparent proxy headers", "tor": "Tor bootstrap"}[ev]
-            console.print(f"  {label:32} ", verdict_text(r["verdict"]), f"[dim]{r.get('detail', '')}[/]")
-        elif ev == "ssh":
-            console.print(f"  {'ssh github.com:22':32} ", verdict_text(x[0]), f"[dim]{x[1]}[/]")
-        elif ev == "speed":
-            console.print(f"  {'downstream':32} {x[0].get('mbps', 0)} Mbit/s [dim]{x[0].get('detail', '')}[/]")
-
-    try:
-        report = scan.run_scan(opts, emit)
-    except KeyboardInterrupt:
-        console.print("\n[red]aborted[/]")
-        return 130
-    if quiet:
-        print_summary(report)
-    else:
-        console.print()
-        print_summary(report)
-    written = scan.write_outputs(report, a.json, a.anon_json, a.html, a.history, not a.no_history)
-    for what, path in written:
-        console.print(f"[dim]  {what} → {path}[/]")
-    return 2 if report["flagged"] else 0
-
-
-def Text_row(dom, r):
-    from rich.text import Text
-    from .render import ech_text, verdict_text
-    t = Text(f"  {r['cat']:30} ")
-    for k in ("dns", "sni", "blockpage"):
-        t.append_text(verdict_text(r[k]["verdict"]).copy())
-        t.append(" " * max(1, 16 - len(r[k]["verdict"] or "")))
-    t.append_text(ech_text(r.get("ech")))
-    notes = []
-    if r["sni"]["verdict"] == "SNI-DPI" and r.get("ech"):
-        notes.append("ECH can bypass")
-    for k in ("dns", "sni", "blockpage"):
-        n = r[k].get("note") or r[k].get("detail")
-        if n and r[k]["verdict"] != "ok" and n != "skipped":
-            notes.append(f"{k}: {n}")
-    if notes:
-        t.append("  " + "; ".join(notes), style="dim")
-    return t
+            report = _run_with_progress(opts, quiet=(fmt == "summary"))
+            console.print()
+            if fmt == "summary":
+                print_summary(report)
+            else:
+                print_report(report, only_flagged=a.flagged_only)
+        if prev is not None and fmt != "json":
+            print_diff(analysis.diff(prev, report), prev["ts"], report["ts"])
+        elif a.watch and fmt != "json":
+            older = config.previous_report(report["net"]["id"], before_ts=report["ts"])
+            if older:
+                print_diff(analysis.diff(older, report), older["ts"], report["ts"])
+        written = scan.write_outputs(report, a.json, a.anon_json, a.html, a.history, not a.no_history)
+        if fmt != "json":
+            for what, path in written:
+                console.print(f"[dim]  {what} → {path}[/]")
+        if not a.watch:
+            return 2 if report["flagged"] else 0
+        prev = report
+        try:
+            console.print(f"[dim]  next scan in {a.watch:g} min (Ctrl-C to stop)[/]")
+            time.sleep(a.watch * 60)
+        except KeyboardInterrupt:
+            return 0
 
 
 def cmd_tui(a) -> int:
@@ -135,8 +169,28 @@ def cmd_compare(a) -> int:
     return compare(a.a, a.b)
 
 
+def cmd_diff(a) -> int:
+    from .render import console, print_diff
+    net_id = a.network or sysinfo.net_fingerprint(None)["id"]
+    files = config.list_reports(net_id)
+    if len(files) < 2:
+        console.print(f"[yellow]need at least two stored reports for network {net_id} "
+                      f"(have {len(files)}; run `filterscope scan` twice)[/]")
+        return 1
+    old, new = config.load_report(files[-2]), config.load_report(files[-1])
+    print_diff(analysis.diff(old, new), old["ts"], new["ts"])
+    return 0
+
+
 def cmd_history(a) -> int:
-    from .history import show
+    from .history import load_runs, show
+    if a.html:
+        from .htmlreport import render_history_html
+        runs = load_runs(a.path)
+        with open(a.html, "w", encoding="utf-8") as f:
+            f.write(render_history_html(runs))
+        print(f"history HTML → {a.html}")
+        return 0
     return show(a.path, a.network, a.last)
 
 
@@ -145,14 +199,39 @@ def cmd_report(a) -> int:
     with open(a.json_file, encoding="utf-8") as f:
         report = json.load(f)
     report.setdefault("flagged", core.flagged(report))
+    report.setdefault("analysis", analysis.analyze(report))
     if a.html:
         from .htmlreport import render_html
         with open(a.html, "w", encoding="utf-8") as f:
             f.write(render_html(report))
         print(f"HTML report → {a.html}")
     else:
-        print_report(report)
+        print_report(report, only_flagged=a.flagged_only)
     return 2 if report["flagged"] else 0
+
+
+def cmd_config(a) -> int:
+    from .render import console
+    if a.action == "set":
+        if not a.key or a.value is None:
+            console.print("[red]usage: filterscope config set KEY VALUE[/]")
+            return 2
+        try:
+            cfg = config.set_value(a.key, a.value)
+        except (KeyError, ValueError) as e:
+            console.print(f"[red]{e}[/]")
+            return 2
+        console.print(f"[green]{a.key} = {cfg[a.key]!r}[/]  [dim]({config.CONFIG_PATH})[/]")
+        return 0
+    if a.action == "path":
+        print(config.CONFIG_PATH)
+        return 0
+    cfg = config.load()
+    console.print(f"[dim]{config.CONFIG_PATH}[/]")
+    for k, v in cfg.items():
+        console.print(f"  {k:14} {v!r}")
+    console.print(f"[dim]profiles: {', '.join(config.PROFILES)}   stored reports: {len(config.list_reports())} in {config.REPORTS_DIR}[/]")
+    return 0
 
 
 def cmd_categories(a) -> int:
@@ -183,16 +262,28 @@ def build_parser():
     p.add_argument("b")
     p.set_defaults(fn=cmd_compare)
 
+    p = sub.add_parser("diff", help="latest two stored reports of this network")
+    p.add_argument("--network", help="network id (default: current)")
+    p.set_defaults(fn=cmd_diff)
+
     p = sub.add_parser("history", help="evidence timeline + changes")
     p.add_argument("path", nargs="?", help="history JSONL (default ~/.filterscope/history.jsonl)")
     p.add_argument("--network", help="only this network id/label")
     p.add_argument("--last", type=int, help="only the last N records per network")
+    p.add_argument("--html", help="write an HTML timeline")
     p.set_defaults(fn=cmd_history)
 
     p = sub.add_parser("report", help="re-render a saved JSON report (console or --html)")
     p.add_argument("json_file")
     p.add_argument("--html")
+    p.add_argument("--flagged-only", action="store_true")
     p.set_defaults(fn=cmd_report)
+
+    p = sub.add_parser("config", help="show or set persistent defaults")
+    p.add_argument("action", nargs="?", choices=["show", "set", "path"], default="show")
+    p.add_argument("key", nargs="?")
+    p.add_argument("value", nargs="?")
+    p.set_defaults(fn=cmd_config)
 
     p = sub.add_parser("categories", help="list site categories and domains")
     p.set_defaults(fn=cmd_categories)
@@ -204,7 +295,6 @@ def build_parser():
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
-    # pass-through subcommands keep their own argparse
     if argv and argv[0] == "wg":
         from .wgcheck import main as wg_main
         return wg_main(argv[1:])

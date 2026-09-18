@@ -1,42 +1,78 @@
 # Changelog
 
+## 3.0.0 — 2026-09-18
+
+Major release: analysis engine, verification pass, fully parallel scanner, TLS-interception
+detection, and a new TUI.
+
+### Analysis engine
+- **Filtering score 0–100** with a level (clean / light / moderate / heavy / severe): share of affected
+  sites + a weight per technique + blocked ports.
+- **Technique badges** — SNI-DPI, RST-injection, TLS-MITM, DNS-hijack, DNS-block, DNS-intercept,
+  encrypted-DNS-block, NXDOMAIN-hijack, block-page, HTTP-proxy, URL-keyword-filter, port-filter,
+  UDP-block, QUIC-block, Tor-block, SSH-block, IPv6-block.
+- **Vendor signature** from block pages, proxy headers and MITM issuers (FortiGate, Sophos, Squid,
+  BlueCoat, Umbrella, Lightspeed, Securly, GoGuardian, Netsweeper, Smoothwall, Palo Alto, Zscaler,
+  Forcepoint, Barracuda, McAfee, MikroTik, WatchGuard, SonicWall, Check Point, BTK…).
+- **Impact by category**, a **confidence** rating and a one-paragraph plain-English verdict.
+- `analysis.diff()` powers `filterscope diff`, `--watch`, and the TUI's compare key.
+
+### Verification pass
+- Every positive site result is re-tested once (only the failing sub-test). Results that do not
+  reproduce are marked *transient* and dropped from findings. Confirmed ones say so.
+
+### New probes
+- **TLS interception / SSL inspection** — verified handshakes against the Mozilla CA bundle for four
+  large public sites; a chain signed by a private issuer = the network decrypts HTTPS.
+- **NXDOMAIN hijack** — random non-existent name under example.com must not resolve.
+- **URL keyword filter** — benign words (vpn, proxy, tor, torrent, bypass, unblock) in a query string
+  must be served identically to a control word.
+- **Vantage point** — public country / Cloudflare colo (IP stripped from anonymized reports).
+
+### Scanner
+- One thread pool, every probe group in flight at once; Tor runs in its own thread from second zero.
+  Full scans went from ~90 s to ~40 s (25 s without Tor). Per-site timings recorded.
+- A probe exception can no longer abort a scan.
+- Config file `~/.filterscope/config.json` (`filterscope config set KEY VALUE`): default label,
+  timeout, categories, extra domains, steps to skip, workers, verify, save_reports.
+- Profiles: `--profile full | quick | school | isp | vpn`.
+- Every scan stores its full JSON under `~/.filterscope/reports/`; `filterscope diff` compares the
+  last two of the current network.
+- `--watch MIN` re-scans on an interval and prints what changed. `--format json` writes the report to
+  stdout for scripting; `--format summary` prints only the analysis. `--skip`, `--no-verify`,
+  `--flagged-only`.
+
+### UI / UX
+- **TUI rewritten**: tabs (Overview · Sites · Egress · History · Help), score bar + progress bar in
+  the header, findings log, diagnosis panel, category impact table, site filter (`/`), affected-only
+  toggle (`f`), row detail panel (resolver answers, RTT vs time-to-RST, ECH), compare with the
+  previous stored scan (`c`), save JSON+HTML (`s`), toast notifications, history tab.
+- **CLI**: live progress bar with findings as they land, analysis panel, category table, sites
+  sorted with affected first, timings.
+- **HTML report**: score gauge, technique badges, category cards, findings, collapsible method and
+  raw JSON, print stylesheet. `filterscope history --html` renders a timeline with sparklines.
+- Score shown in `history`, `compare` and the TUI history tab.
+
+### Packaging
+- macOS Intel binary dropped (GitHub retired the macos-13 runner); Intel Macs install via pip/pipx.
+
+### Schema
+- JSON `schema: 3`: adds `geo`, `tls_intercept`, `nxdomain`, `url_filter`, `analysis`, `timings`,
+  `verified`, `steps`, per-site `ms` / `confirmed` / `transient`.
+
 ## 2.0.0 — 2026-09-18
 
 Major release: proper package, cross-platform, new probes, evidence-grade reports.
 
-### New probes
-- **Encrypted DNS reachability** — DoH (Cloudflare, Google, AdGuard) and DoT (Cloudflare, Google, Quad9): is encrypted DNS itself blocked.
-- **Port-53 interception** — a plain DNS query sent to 192.0.2.1 (TEST-NET-1); any answer proves the network transparently proxies DNS, so "just use 8.8.8.8" does nothing.
-- **QUIC / UDP-443** — a QUIC version-negotiation probe (RFC 9000 §6) against Cloudflare and Google; tells you whether HTTP/3 and QUIC-based tunnels can leave the network.
-- **HTTP transparent proxy** — filter-appliance headers (`Via`, `X-Squid-*`, BlueCoat, FortiGate, Sophos…) on a neutral plain-HTTP fetch.
-- **IPv6 egress**.
-- **In-path RST injection** — time-to-RST is compared with the TCP RTT; an RST that arrives faster than a round trip was injected by a middlebox, not sent by the server.
-- **Throughput** (`--speed`, opt-in).
-- More block-page signatures (Umbrella, Lightspeed, Securly, GoGuardian, Netsweeper, Smoothwall, Palo Alto, Zscaler, Forcepoint, Barracuda…).
-
-### Cross-platform
-- Runs on **Windows** (console colours, `netsh`/`route`/`ipconfig` network fingerprint, `tor.exe` discovery incl. Tor Browser folders, UTF-8 everywhere), **macOS** and Linux.
-- Single-file binaries for Windows, Linux and macOS built by CI on every tag.
-
-### CLI / UX
-- One `filterscope` command with sub-commands: `tui` (default), `scan`, `compare`, `history`, `report`, `categories`, `wg`, `warp`.
-- `pip install .` / `pipx install .` — no more launcher script.
-- Rich tables; results stream in as probes finish.
-- `--html` self-contained evidence report; `report` re-renders any saved JSON.
-- `--categories ai,vpn-api`, `--domain`, `--domains-file` to scope a scan; `--quick`, `--only`.
-- Exit code 2 when interference is detected (cron / CI friendly), `--quiet`.
-- TUI: `s` saves JSON + HTML; new rows for QUIC, IPv6, DoH/DoT, interception, proxy, SSH.
-- History and compare understand the new probes; `history --last N --network X`.
-- JSON report carries `schema: 2` and `version`.
-
-### Internals
-- Engine split into `core` (probes), `scan` (orchestrator with event stream), `render`, `htmlreport`.
-- Offline test-suite (`pytest`), CI on Linux/Windows/macOS.
-- DoH falls back to RFC 8484 GET when a resolver rejects HTTP/1.1 POST.
-
-### Removed
-- Top-level `filtertest.py`, `tui.py`, `compare.py`, `history.py`, `wgcheck.py`, `warp.py`, `install.sh` launcher (all live under the `filterscope` package now). `filterscope warp` is Linux-only and says so on other platforms.
+- Package + single `filterscope` CLI (tui/scan/compare/history/report/categories/wg/warp).
+- Windows / macOS support; single-file binaries built by CI.
+- New probes: DoH/DoT reachability, port-53 interception, QUIC/UDP-443 version negotiation, HTTP
+  transparent-proxy headers, IPv6 egress, in-path RST timing, optional throughput.
+- HTML evidence report, category/domain scoping, exit code 2 on interference, TUI save key.
+- Offline test-suite, CI on Linux/Windows/macOS.
 
 ## 1.0.0 — 2026-06-16
 
-Initial public release under the tunnelmoth account: DNS hijack, SNI-DPI, block page, outbound ports, STUN UDP egress, ECH detection, Tor bootstrap, JSON/anonymized reports, evidence history, compare, WireGuard handshake test, WARP helper.
+Initial public release under the tunnelmoth account: DNS hijack, SNI-DPI, block page, outbound ports,
+STUN UDP egress, ECH detection, Tor bootstrap, JSON/anonymized reports, evidence history, compare,
+WireGuard handshake test, WARP helper.

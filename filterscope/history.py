@@ -29,15 +29,19 @@ def blocked_of(r) -> set:
         blocked.add("dns-53 intercepted")
     if r.get("http_proxy") == "PROXY":
         blocked.add("http transparent proxy")
+    blocked |= {f"tls-mitm {d}" for d in r.get("tls_mitm", [])}
+    if r.get("nxdomain") == "NXDOMAIN-HIJACK":
+        blocked.add("nxdomain hijack")
+    if r.get("url_filter") == "URL-KEYWORD-FILTER":
+        blocked.add("url keyword filter")
     return blocked
 
 
-def show(path=None, network=None, last=None) -> int:
+def load_runs(path=None) -> list:
     path = path or sysinfo.HISTORY_PATH
-    if not os.path.exists(path):
-        console.print(f"[red]no history: {path}[/]")
-        return 1
     runs = []
+    if not os.path.exists(path):
+        return runs
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -46,6 +50,15 @@ def show(path=None, network=None, last=None) -> int:
                     runs.append(json.loads(line))
                 except json.JSONDecodeError:
                     continue
+    return runs
+
+
+def show(path=None, network=None, last=None) -> int:
+    path = path or sysinfo.HISTORY_PATH
+    if not os.path.exists(path):
+        console.print(f"[red]no history: {path}[/]")
+        return 1
+    runs = load_runs(path)
     if not runs:
         console.print("[yellow]history is empty[/]")
         return 1
@@ -66,7 +79,8 @@ def show(path=None, network=None, last=None) -> int:
         prev = None
         for r in items:
             blocked = blocked_of(r)
-            console.print(f"  {r['ts']}  [dim]({len(blocked)} blocks)[/]")
+            sc = r.get("score")
+            console.print(f"  {r['ts']}  [dim]({len(blocked)} blocks{f', score {sc}' if sc is not None else ''})[/]")
             if prev is not None:
                 added, removed = sorted(blocked - prev), sorted(prev - blocked)
                 for x in added:

@@ -21,6 +21,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import certifi
 import dns.exception
 import dns.message
 import dns.query
@@ -153,10 +154,47 @@ STUN_SERVERS = [
 
 QUIC_SERVERS = [("cloudflare.com", 443), ("www.google.com", 443)]
 
+# canaries for TLS-interception (MITM) detection: big, stable, publicly-trusted certs
+TLS_CANARIES = ["wikipedia.org", "github.com", "duckduckgo.com", "bbc.com"]
+
+# benign words some URL filters key on (Lightspeed/Securly style). Nothing offensive.
+URL_KEYWORDS = ["vpn", "proxy", "tor", "torrent", "bypass", "unblock"]
+
+# fingerprint hints → vendor name
+VENDOR_HINTS = {
+    "fortiguard": "Fortinet FortiGate", "fortigate": "Fortinet FortiGate", "fortinet": "Fortinet FortiGate",
+    "sophos": "Sophos", "squid": "Squid proxy", "bluecoat": "Symantec BlueCoat", "blue coat": "Symantec BlueCoat",
+    "cisco umbrella": "Cisco Umbrella", "opendns": "Cisco Umbrella/OpenDNS", "lightspeed": "Lightspeed Systems",
+    "securly": "Securly", "goguardian": "GoGuardian", "netsweeper": "Netsweeper", "smoothwall": "Smoothwall",
+    "palo alto": "Palo Alto Networks", "zscaler": "Zscaler", "websense": "Forcepoint/Websense",
+    "forcepoint": "Forcepoint", "barracuda": "Barracuda", "mcafee": "McAfee/Skyhigh", "mikrotik": "MikroTik",
+    "btk": "BTK (Turkish regulator, 5651)", "5651": "BTK (Turkish regulator, 5651)", "guvenli internet": "BTK Safe Internet",
+    "watchguard": "WatchGuard", "sonicwall": "SonicWall", "checkpoint": "Check Point", "check point": "Check Point",
+    "untangle": "Untangle/Arista", "pfsense": "pfSense", "cloudflare gateway": "Cloudflare Gateway", "kaspersky": "Kaspersky",
+}
+
 # verdicts that do NOT count as interference
 NEUTRAL = ("ok", "?", "no-dns", "unreachable", "", None)
 
 UA = f"Mozilla/5.0 (compatible; filterscope/{__version__})"
+
+
+def retry(fn, times=2, ok=lambda r: True):
+    """Call fn until ok(result) or attempts run out; returns the last result."""
+    r = None
+    for _ in range(times):
+        r = fn()
+        if ok(r):
+            return r
+    return r
+
+
+def vendor_guess(*texts) -> str:
+    blob = " ".join(t for t in texts if t).lower()
+    for k, v in VENDOR_HINTS.items():
+        if k in blob:
+            return v
+    return ""
 
 
 def categories() -> list[str]:
@@ -666,6 +704,134 @@ def tor_test(timeout=60):
                     pass
 
 
+# ── TLS interception (MITM / SSL inspection) ──────────────────────────────────
+def _cert_names(der: bytes):
+    """(issuer, subject, san) from a DER certificate, via cryptography."""
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import ExtensionOID, NameOID
+        c = x509.load_der_x509_certificate(der)
+
+        def cn(name):
+            try:
+                v = name.get_attributes_for_oid(NameOID.COMMON_NAME)
+                o = name.get_attributes_for_oid(NameOID.ORGANIZATION_NAME)
+                return (v[0].value if v else "") + (f" ({o[0].value})" if o else "")
+            except Exception:
+                return name.rfc4514_string()
+        try:
+            san = c.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME).value
+            names = san.get_values_for_type(x509.DNSName)[:3]
+        except Exception:
+            names = []
+        return cn(c.issuer), cn(c.subject), names
+    except Exception:
+        return "?", "?", []
+
+
+def tls_intercept_test(domain, timeout):
+    """Verified TLS handshake against the Mozilla CA bundle (certifi). If verification
+    fails but an unverified handshake succeeds, look at who signed the presented cert:
+    a private/enterprise issuer for a big public site = SSL inspection (MITM)."""
+    out = {"verdict": "ok", "issuer": "", "detail": ""}
+    ctx = ssl.create_default_context(cafile=certifi.where())
+    try:
+        with socket.create_connection((domain, 443), timeout=timeout) as s:
+            with ctx.wrap_socket(s, server_hostname=domain) as ts:
+                der = ts.getpeercert(binary_form=True)
+                out["issuer"] = _cert_names(der)[0]
+                return out
+    except ssl.SSLCertVerificationError as e:
+        reason = getattr(e, "verify_message", "") or str(e)
+    except socket.timeout:
+        return {"verdict": "?", "issuer": "", "detail": "timeout"}
+    except ssl.SSLError as e:
+        return {"verdict": "?", "issuer": "", "detail": e.reason or type(e).__name__}
+    except OSError as e:
+        return {"verdict": "?", "issuer": "", "detail": type(e).__name__}
+    # verification failed → fetch the presented chain unverified
+    uctx = ssl._create_unverified_context()
+    try:
+        with socket.create_connection((domain, 443), timeout=timeout) as s:
+            with uctx.wrap_socket(s, server_hostname=domain) as ts:
+                der = ts.getpeercert(binary_form=True)
+    except Exception as e:
+        return {"verdict": "?", "issuer": "", "detail": f"verify failed ({reason}); unverified {type(e).__name__}"}
+    issuer, subject, san = _cert_names(der)
+    out.update(issuer=issuer, subject=subject, san=san)
+    if "self" in reason.lower() or "unable to get local issuer" in reason.lower() or "self-signed" in reason.lower():
+        out["verdict"] = "TLS-MITM"
+        out["detail"] = f"cert for {domain} signed by '{issuer}' — not publicly trusted ({reason})"
+    elif "expired" in reason.lower():
+        out["verdict"] = "?"
+        out["detail"] = f"cert expired ({issuer}) — not MITM evidence"
+    else:
+        out["verdict"] = "TLS-MITM?"
+        out["detail"] = f"verify failed: {reason}; issuer '{issuer}'"
+    return out
+
+
+def tls_intercept_multi(timeout):
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futs = {ex.submit(tls_intercept_test, d, timeout): d for d in TLS_CANARIES}
+        return {futs[f]: f.result() for f in as_completed(futs)}
+
+
+# ── NXDOMAIN hijack (search-redirect / ad injection on non-existent names) ───────
+def nxdomain_test(timeout):
+    name = f"fs-{os.urandom(6).hex()}.example.com"     # reserved domain, authoritative NXDOMAIN
+    ips = system_resolve(name)
+    if ips:
+        return {"verdict": "NXDOMAIN-HIJACK", "detail": f"{name} → {ips} (should not exist)"}
+    try:
+        u = udp53_resolve(name, "8.8.8.8", timeout)
+        if u:
+            return {"verdict": "NXDOMAIN-HIJACK", "detail": f"@8.8.8.8 answered {u} for {name}"}
+    except Exception:
+        pass
+    return {"verdict": "ok", "detail": "non-existent name correctly returns nothing"}
+
+
+# ── URL keyword filtering (benign words in the query string) ──────────────────
+def url_keyword_test(timeout):
+    base_url = "http://example.com/"
+
+    def fetch(q):
+        try:
+            r = requests.get(base_url, params={"q": q}, timeout=timeout, allow_redirects=False,
+                             headers={"User-Agent": UA})
+            body = r.text[:4000].lower()
+            sig = next((sg for sg in BLOCKPAGE_SIGNS if sg in body), "")
+            return r.status_code, sig, r.headers.get("location", "")
+        except requests.exceptions.RequestException as e:
+            return None, type(e).__name__, ""
+
+    base = fetch("hello")
+    if base[0] is None:
+        return {"verdict": "?", "detail": f"baseline unreachable ({base[1]})", "hits": []}
+    hits = []
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        res = dict(zip(URL_KEYWORDS, ex.map(fetch, URL_KEYWORDS)))
+    for w, (code, sig, loc) in res.items():
+        if code is None or code != base[0] or sig or (loc and loc != base[2]):
+            hits.append(f"{w}({code or sig})")
+    if hits:
+        return {"verdict": "URL-KEYWORD-FILTER", "detail": "blocked words: " + ", ".join(hits), "hits": hits}
+    return {"verdict": "ok", "detail": f"{len(URL_KEYWORDS)} benign keywords pass unchanged", "hits": []}
+
+
+# ── where am I (public vantage point) ─────────────────────────────────────────
+def geo_context(timeout):
+    """Public IP / country / Cloudflare colo via 1.1.1.1 trace (no third-party API)."""
+    try:
+        t = requests.get("https://1.1.1.1/cdn-cgi/trace", timeout=timeout, headers={"User-Agent": UA}).text
+        kv = dict(l.split("=", 1) for l in t.splitlines() if "=" in l)
+        return {"ip": kv.get("ip", ""), "country": kv.get("loc", ""), "colo": kv.get("colo", ""),
+                "warp": kv.get("warp", ""), "http": kv.get("http", "")}
+    except Exception as e:
+        return {"ip": "", "country": "", "colo": "", "warp": "", "http": "", "error": type(e).__name__}
+
+
 # ── advice ────────────────────────────────────────────────────────────────────
 def tunnel_advice(report):
     """Tunnel methods that bypass SNI-DPI/filtering — advice based on observations."""
@@ -734,6 +900,9 @@ def vpn_advice(report):
     if enc and all(v.startswith("BLOCKED") for v in enc.values()):
         out.append(("r", "All DoH/DoT resolvers blocked → the network forces its own DNS; apps using "
                          "encrypted DNS (Firefox DoH, Android Private DNS) will fail."))
+    if any(r.get("verdict", "").startswith("TLS-MITM") for r in report.get("tls_intercept", {}).values()):
+        out.append(("r", "TLS is being INTERCEPTED (SSL inspection): the network decrypts HTTPS with its own CA. "
+                         "Assume every page and login is readable by the operator; a VPN/tunnel is the only privacy."))
     if report.get("dns_intercept", {}).get("verdict") == "INTERCEPTED":
         out.append(("r", "Port-53 DNS is transparently intercepted → 'use 8.8.8.8' does NOTHING here; "
                          "only DoH/DoT (if reachable) or a tunnel gives honest DNS."))
@@ -766,6 +935,13 @@ def flagged(report):
         out.append("dns-53 intercepted")
     if report.get("http_proxy", {}).get("verdict") == "PROXY":
         out.append("http transparent proxy")
+    for dom, r in report.get("tls_intercept", {}).items():
+        if r.get("verdict", "").startswith("TLS-MITM"):
+            out.append(f"tls-mitm {dom}")
+    if report.get("nxdomain", {}).get("verdict") == "NXDOMAIN-HIJACK":
+        out.append("nxdomain hijack")
+    if report.get("url_filter", {}).get("verdict") == "URL-KEYWORD-FILTER":
+        out.append("url keyword filter")
     return out
 
 
@@ -789,6 +965,11 @@ def history_record(report):
                                         if v.startswith("BLOCKED")),
         "dns_intercept": report.get("dns_intercept", {}).get("verdict", ""),
         "http_proxy": report.get("http_proxy", {}).get("verdict", ""),
+        "tls_mitm": sorted(d for d, r in report.get("tls_intercept", {}).items()
+                           if r.get("verdict", "").startswith("TLS-MITM")),
+        "nxdomain": report.get("nxdomain", {}).get("verdict", ""),
+        "url_filter": report.get("url_filter", {}).get("verdict", ""),
+        "score": report.get("analysis", {}).get("score"),
     }
 
 
@@ -800,4 +981,6 @@ def anonymize(report):
         for k in ("system", "udp53"):
             d.get("dns", {}).pop(k, None)
     r.get("http_proxy", {}).pop("headers", None)
+    if "geo" in r:
+        r["geo"] = {k: v for k, v in r["geo"].items() if k in ("country", "colo", "warp")}
     return r

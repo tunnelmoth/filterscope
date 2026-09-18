@@ -123,7 +123,7 @@ def test_html_report_renders():
     html = htmlreport.render_html(r)
     assert "<!doctype html>" in html
     assert "discord.com" in html and "SNI-DPI" in html
-    assert "interference signals" in html
+    assert "Findings" in html and "gauge" in html
     assert "<script" not in html
 
 
@@ -131,3 +131,108 @@ def test_scan_options_quick():
     o = scan.ScanOptions.quick(label="x")
     assert not o.tor and not o.ech and "tor" not in o.steps
     assert scan.ScanOptions().steps == scan.ALL_STEPS
+
+
+# ── v3: analysis / config / verification ──────────────────────────────────────
+from filterscope import analysis, config
+
+
+def test_analysis_scoring_and_techniques():
+    r = _report()
+    an = analysis.analyze(r)
+    assert "SNI-DPI" in an["techniques"] and "RST-injection" in an["techniques"]
+    assert "DNS-intercept" in an["techniques"] and "HTTP-proxy" in an["techniques"]
+    assert "QUIC-block" in an["techniques"] and "Tor-block" in an["techniques"]
+    assert 0 < an["score"] <= 100
+    assert an["level"] in ("light", "moderate", "heavy", "severe")
+    assert an["vendor"] == "Squid proxy"
+    assert an["categories"][0]["category"] == "chat" and an["categories"][0]["blocked"] == 1
+    assert "filtering" in an["summary"]
+    clean = {"sites": {}, "ports": {}, "net": {"label": "x"}}
+    assert analysis.score(clean) == 0 and analysis.level(0) == "clean"
+    assert analysis.level(19) == "light" and analysis.level(20) == "moderate" and analysis.level(70) == "severe"
+
+
+def test_analysis_mitm_dominates():
+    r = _report()
+    r["tls_intercept"] = {"github.com": {"verdict": "TLS-MITM", "issuer": "FortiGate CA", "detail": "x"}}
+    an = analysis.analyze(r)
+    assert an["techniques"][0] == "TLS-MITM"
+    assert an["vendor"] == "Fortinet FortiGate"
+    assert "decrypted" in an["summary"]
+    assert "tls-mitm github.com" in core.flagged(r)
+
+
+def test_diff():
+    a, b = _report(), _report()
+    b["sites"]["eff.org"]["sni"]["verdict"] = "SNI-DPI"
+    b["ports"]["SSH 22"] = "open"
+    d = analysis.diff(a, b)
+    assert d["added"] == ["eff.org: sni=SNI-DPI"]
+    assert d["removed"] == ["port SSH 22"]
+
+
+def test_config_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "CONFIG_PATH", str(tmp_path / "config.json"))
+    monkeypatch.setattr(config, "REPORTS_DIR", str(tmp_path / "reports"))
+    assert config.load()["timeout"] == 6.0
+    cfg = config.set_value("timeout", "9")
+    assert cfg["timeout"] == 9.0 and config.load()["timeout"] == 9.0
+    cfg = config.set_value("categories", "ai, vpn-api")
+    assert cfg["categories"] == ["ai", "vpn-api"]
+    cfg = config.set_value("tor", "off")
+    assert cfg["tor"] is False
+    try:
+        config.set_value("nope", "1")
+        assert False
+    except KeyError:
+        pass
+    r = _report()
+    p = config.store_report(r)
+    assert config.list_reports("abcd1234") == [p]
+    assert config.previous_report("abcd1234")["ts"] == r["ts"]
+    assert config.previous_report("abcd1234", before_ts=r["ts"]) is None
+
+
+def test_scan_options_from_config_and_profiles():
+    cfg = dict(config.DEFAULTS, categories=["ai"], steps_off=["tor"])
+    o = scan.ScanOptions.from_config(cfg)
+    assert o.categories == ["ai"] and "tor" not in o.steps and o.verify
+    o = scan.ScanOptions.from_config(cfg, "quick")
+    assert not o.tor and "mitm" not in o.steps
+    o = scan.ScanOptions.from_config(cfg, "school", label="x", timeout=None)
+    assert "video" in o.categories and o.label == "x" and o.timeout == 6.0
+
+
+def test_recheck_job_only_reruns_positives(monkeypatch):
+    calls = []
+    monkeypatch.setattr(core, "dns_test", lambda d, t: calls.append("dns") or {"truth": ["1.1.1.1"], "system": [], "udp53": [], "verdict": "ok", "note": ""})
+    monkeypatch.setattr(core, "sni_test", lambda d, ip, t: calls.append("sni") or {"verdict": "ok", "detail": ""})
+    monkeypatch.setattr(core, "blockpage_test", lambda d, t: calls.append("bp") or {"verdict": "ok", "detail": ""})
+    first = _report()["sites"]["discord.com"]          # only sni positive
+    dom, second = scan.recheck_job("discord.com", first, scan.ScanOptions())
+    assert set(second) == {"dns", "sni"} and "bp" not in calls
+
+
+def test_history_html_renders():
+    from filterscope.htmlreport import render_history_html
+    recs = [core.history_record(_report()), core.history_record(_report())]
+    recs[1]["ts"] = "2026-01-02 00:00:00"
+    recs[1]["ports_blocked"] = []
+    h = render_history_html(recs)
+    assert "<svg" in h and "lifted" not in h and "− port SSH 22" in h
+
+
+def test_diff_ignores_domains_not_in_both():
+    a, b = _report(), _report()
+    del b["sites"]["eff.org"]                      # b is a narrower scan
+    a["sites"]["eff.org"]["sni"]["verdict"] = "SNI-DPI"
+    d = analysis.diff(a, b)
+    assert d["removed"] == [] and d["added"] == []
+
+
+def test_score_small_sample_is_damped():
+    r = _report()
+    r["sites"] = {"discord.com": r["sites"]["discord.com"]}
+    r.update(ports={}, quic="open", dns_intercept={}, http_proxy={}, tor={}, ssh="open", dns_encrypted={})
+    assert analysis.level(analysis.score(r)) in ("light", "moderate")

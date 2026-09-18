@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """warp — install/manage Cloudflare WARP without AUR (wgcf + wireguard-tools).
 
 Manages the WARP WireGuard tunnel from one place to bypass filters like SNI-DPI.
@@ -12,7 +11,8 @@ Commands:
   status    status + curl trace (warp=on?)
   autostart enable at boot (systemd, sudo)
 
-Usage:  ./warp.py up    ./warp.py status
+Usage:  filterscope warp up    filterscope warp status
+Linux only (wg-quick + systemd); on Windows/macOS use the official WARP client.
 """
 import os
 import shutil
@@ -29,6 +29,7 @@ WGCF = os.path.join(HOME, ".local", "bin", "wgcf")
 SYS_CONF = "/etc/wireguard/warp.conf"
 IFACE = "warp"
 HERE = os.path.dirname(os.path.abspath(__file__))
+MASQUE_SH = os.path.join(HERE, "scripts", "warp-masque.sh")
 
 G, R, Y, D, X = "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
 
@@ -77,8 +78,8 @@ def test():
     if not os.path.exists(PROFILE):
         setup()
     say(D, "handshake test (using our own wgcheck tool)…")
-    p = run([sys.executable, os.path.join(HERE, "wgcheck.py"),
-             "--config", PROFILE], capture_output=True, text=True)
+    p = run([sys.executable, "-m", "filterscope.wgcheck", "--config", PROFILE],
+            capture_output=True, text=True, encoding="utf-8")
     print(p.stdout.strip())
     if p.returncode != 0:
         say(R, "WARP looks unreachable on this network.")
@@ -100,7 +101,7 @@ def install_conf(port=None):
             "printf 'nameserver 1.1.1.1\\nnameserver 1.0.0.1\\n' > /etc/resolv.conf\n"
             "PostDown = mv -f /etc/resolv.conf.warpbak /etc/resolv.conf\n")
     lines = []
-    for l in open(PROFILE):
+    for l in open(PROFILE, encoding="utf-8"):
         if l.strip().lower().startswith("dns"):
             continue
         if port and l.strip().lower().startswith("endpoint"):
@@ -110,7 +111,7 @@ def install_conf(port=None):
             lines.append(post)          # keep PostUp/Down inside [Interface]
         lines.append(l)
     tmp = os.path.join(WARP_DIR, ".warp-sys.conf")
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         f.write("".join(lines))
     say(D, f"copying profile to system (sudo, DNS line stripped) → {SYS_CONF}")
     run(["sudo", "install", "-D", "-m", "600", tmp, SYS_CONF], check=True)
@@ -170,7 +171,7 @@ def down():
 def masque(action="up"):
     """Official Cloudflare client (MASQUE) — bypasses WireGuard-DPI. up|down|status."""
     if not action or action == "up":
-        run(["sudo", "bash", os.path.join(HERE, "warp-masque.sh")])
+        run(["sudo", "bash", MASQUE_SH])
     elif action == "down":
         run(["warp-cli", "disconnect"])
         say(G, "WARP MASQUE disconnected.")
@@ -222,15 +223,20 @@ def autostart():
     say(G, "enabled at boot (wg-quick@warp).")
 
 
-def main():
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "up"
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if not sys.platform.startswith("linux"):
+        sys.exit("warp: Linux only (wg-quick/systemd). On Windows/macOS install the official "
+                 "Cloudflare WARP client (1.1.1.1 app) and pick MASQUE in its settings.")
+    cmd = argv[0] if argv else "help"
     fns = {"setup": setup, "test": test, "up": up, "down": down,
            "status": status, "autostart": autostart, "autoport": autoport,
            "masque": masque}
     fn = fns.get(cmd)
     if not fn:
-        sys.exit(f"commands: {', '.join(fns)} (masque: up|down|status)")
-    arg = sys.argv[2] if len(sys.argv) > 2 else None
+        print(f"usage: filterscope warp <{' | '.join(fns)}>  (masque: up|down|status)")
+        sys.exit(0 if cmd in ("help", "-h", "--help") else 2)
+    arg = argv[1] if len(argv) > 1 else None
     try:
         if cmd == "up":
             fn(int(arg) if arg else None)   # warp up [port]

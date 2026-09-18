@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""wgcheck — test whether a UDP VPN works on this network via a real WireGuard handshake.
+"""wgcheck — does a UDP VPN work on this network: a real WireGuard handshake.
 
 Uses your own WireGuard config: sends a handshake initiation (Noise_IKpsk2); if the
 server returns a response (type 2) → WireGuard WORKS on this network. No reply →
@@ -8,9 +7,8 @@ the endpoint/UDP is blocked or the config is wrong.
 Only works against your own VPN server (your key must be configured as a peer).
 
 Usage:
-  ./wgcheck.py --config /etc/wireguard/wg0.conf
-  ./wgcheck.py --endpoint vpn.example.com:51820 \
-               --server-pubkey <base64> --private-key <base64>
+  filterscope wg --config /etc/wireguard/wg0.conf
+  filterscope wg --endpoint vpn.example.com:51820 --server-pubkey <b64> --private-key <b64>
 """
 import argparse
 import base64
@@ -96,7 +94,7 @@ def build_initiation(spub_r, spriv_raw):
 
 def parse_config(path):
     priv = pub = endpoint = None
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line.lower().startswith("privatekey"):
@@ -108,15 +106,15 @@ def parse_config(path):
     return priv, pub, endpoint
 
 
-def main():
-    ap = argparse.ArgumentParser(description="WireGuard handshake reachability test")
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="filterscope wg", description="WireGuard handshake reachability test")
     ap.add_argument("--config", help="wg conf file")
     ap.add_argument("--endpoint", help="host:port")
     ap.add_argument("--server-pubkey", help="server public key (base64)")
     ap.add_argument("--private-key", help="your private key (base64)")
     ap.add_argument("--timeout", type=float, default=5)
     ap.add_argument("--tries", type=int, default=3)
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     priv, pub, endpoint = a.private_key, a.server_pubkey, a.endpoint
     if a.config:

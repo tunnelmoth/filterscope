@@ -1,0 +1,803 @@
+"""Measurement primitives. Pure functions, no printing — used by the CLI, the TUI
+and the tests.
+
+Every probe only touches well-known, clean domains and public test endpoints.
+Nothing here pings inappropriate or illegal content.
+"""
+from __future__ import annotations
+
+import base64
+import copy
+import ipaddress
+import os
+import re
+import shutil
+import socket
+import ssl
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import dns.exception
+import dns.message
+import dns.query
+import dns.rdatatype
+import requests
+
+from . import __version__
+
+SCHEMA = 2
+
+# ── clean target list (category/name → domain). NO inappropriate content. ─────
+SITES = {
+    "info/wikipedia": "wikipedia.org",
+    "digital-rights/eff": "eff.org",
+    "anonymity/tor": "torproject.org",
+    "messaging/signal": "signal.org",
+    "vpn-info/proton": "protonvpn.com",
+    "dev/github": "github.com",
+    "search/duckduckgo": "duckduckgo.com",
+    "social/reddit": "reddit.com",
+    "social/x": "x.com",
+    "chat/discord": "discord.com",
+    "messaging/telegram": "telegram.org",
+    "archive/archive.org": "archive.org",
+    "news/bbc": "bbc.com",
+    # AI tools (often blocked at schools)
+    "ai/chatgpt": "chatgpt.com",
+    "ai/openai": "openai.com",
+    "ai/claude": "claude.ai",
+    "ai/anthropic": "anthropic.com",
+    "ai/gemini": "gemini.google.com",
+    "ai/perplexity": "perplexity.ai",
+    "ai/copilot": "copilot.microsoft.com",
+    "ai/huggingface": "huggingface.co",
+    # VPN site/API (where the app logs in + pulls config; if blocked the VPN fails)
+    "vpn-api/proton": "api.protonvpn.ch",
+    "vpn-api/mullvad": "mullvad.net",
+    "vpn-api/nordvpn": "nordvpn.com",
+    "vpn-api/windscribe": "windscribe.com",
+    "vpn-api/airvpn": "airvpn.org",
+    # video / media (often blocked at schools)
+    "video/youtube": "youtube.com",
+    "video/tiktok": "tiktok.com",
+    "video/twitch": "twitch.tv",
+    "social/instagram": "instagram.com",
+    "social/facebook": "facebook.com",
+    "social/mastodon": "mastodon.social",
+    "social/bluesky": "bsky.app",
+    # news — international + independent (evidence of political filtering)
+    "news/reuters": "reuters.com",
+    "news/aljazeera": "aljazeera.com",
+    "news/dw": "dw.com",
+    "news/guardian": "theguardian.com",
+    "news-tr/bianet": "bianet.org",
+    "news-tr/diken": "diken.com.tr",
+    # privacy tools
+    "privacy/proton": "proton.me",
+    "privacy/tutanota": "tuta.com",
+    "privacy/startpage": "startpage.com",
+    "privacy/privacyguides": "privacyguides.org",
+    # human rights (evidence of over-blocking)
+    "rights/amnesty": "amnesty.org",
+    "rights/hrw": "hrw.org",
+    "rights/accessnow": "accessnow.org",
+    # education / health (school filters often over-block these)
+    "education/khan": "khanacademy.org",
+    "education/coursera": "coursera.org",
+    "health/who": "who.int",
+    # censorship-circumvention tools
+    "circumvention/psiphon": "psiphon.ca",
+    "circumvention/lantern": "getlantern.org",
+    "circumvention/riseup": "riseup.net",
+    # dev / storage / games
+    "dev/stackoverflow": "stackoverflow.com",
+    "dev/gitlab": "gitlab.com",
+    "storage/mega": "mega.nz",
+    "storage/dropbox": "dropbox.com",
+    "games/steam": "store.steampowered.com",
+    "games/epic": "epicgames.com",
+}
+
+# outbound port reachability (portquiz.net listens on every TCP port → egress test)
+PORTS = {
+    "HTTPS 443": 443,
+    "HTTP 80": 80,
+    "SSH 22": 22,
+    "DoT 853": 853,
+    "OpenVPN-TCP 1194": 1194,
+    "L2TP 1701": 1701,
+    "WireGuard-TCP 51820": 51820,  # WG is normally UDP; this is a TCP-reachability hint only
+    "Tor-OR 9001": 9001,
+    "alt-HTTPS 8443": 8443,
+}
+PORTQUIZ = "portquiz.net"
+
+DOH_SERVERS = {
+    "cloudflare": "https://cloudflare-dns.com/dns-query",
+    "google": "https://dns.google/dns-query",
+    "adguard": "https://dns.adguard-dns.com/dns-query",   # Quad9 DoH needs HTTP/2 (requests is h1.1)
+}
+DOT_SERVERS = {
+    "cloudflare": ("1.1.1.1", "one.one.one.one"),
+    "google": ("8.8.8.8", "dns.google"),
+    "quad9": ("9.9.9.9", "dns.quad9.net"),
+}
+
+# block page / filter signatures (matched lowercased)
+BLOCKPAGE_SIGNS = [
+    "5651", "btk.gov.tr", "internet2.btk", "bu siteye erişim",
+    "erişime engel", "engellenmiştir", "guvenli internet", "güvenli internet",
+    "fortiguard", "web page blocked", "blocked by sophos", "web filter",
+    "access denied", "erişim engellendi", "yasaklı", "content blocked",
+    "this site is blocked", "url blocked", "category blocked",
+    "cisco umbrella", "opendns", "lightspeed", "securly", "goguardian",
+    "netsweeper", "smoothwall", "palo alto networks", "zscaler",
+    "websense", "forcepoint", "barracuda", "mcafee web gateway",
+]
+
+# response headers that give away a transparent HTTP proxy / filter appliance
+PROXY_HEADERS = ["via", "x-squid-error", "x-cache", "x-cache-lookup", "proxy-connection",
+                 "x-bluecoat-via", "x-forcepoint", "x-fortigate", "x-sophos", "x-proxy-id"]
+PROXY_SERVERS = ["squid", "bluecoat", "fortigate", "sophos", "mikrotik", "zscaler", "proxy"]
+
+STUN_SERVERS = [
+    ("stun.l.google.com", 19302),
+    ("stun1.l.google.com", 19302),
+    ("stun.cloudflare.com", 3478),
+    ("global.stun.twilio.com", 3478),
+]
+
+QUIC_SERVERS = [("cloudflare.com", 443), ("www.google.com", 443)]
+
+# verdicts that do NOT count as interference
+NEUTRAL = ("ok", "?", "no-dns", "unreachable", "", None)
+
+UA = f"Mozilla/5.0 (compatible; filterscope/{__version__})"
+
+
+def categories() -> list[str]:
+    return sorted({c.split("/")[0] for c in SITES})
+
+
+def select_sites(cats: list[str] | None = None, extra: list[str] | None = None) -> dict:
+    """Filter SITES by category prefix and/or add user domains (category 'custom')."""
+    out = {}
+    if cats:
+        want = {c.strip().lower() for c in cats if c.strip()}
+        out = {c: d for c, d in SITES.items() if c.split("/")[0] in want}
+    else:
+        out = dict(SITES)
+    for d in extra or []:
+        d = d.strip().lower()
+        if d and d not in out.values():
+            out[f"custom/{d}"] = d
+    return out
+
+
+# ── DNS ───────────────────────────────────────────────────────────────────────
+def _doh_post(name, rtype, server, timeout):
+    """RFC 8484 over plain requests (skips dnspython's h3/httpx dependency).
+    POST first; some resolvers (Quad9) reject HTTP/1.1 POST → GET with base64url."""
+    q = dns.message.make_query(name, rtype, id=0)
+    wire = q.to_wire()
+    hdr = {"content-type": "application/dns-message", "accept": "application/dns-message",
+           "user-agent": UA}
+    r = requests.post(server, data=wire, timeout=timeout, headers=hdr)
+    if r.status_code in (405, 415, 505):
+        b64 = base64.urlsafe_b64encode(wire).decode().rstrip("=")
+        r = requests.get(server, params={"dns": b64}, timeout=timeout, headers=hdr)
+    r.raise_for_status()
+    return dns.message.from_wire(r.content)
+
+
+def doh_resolve(name, server, timeout, rtype="A"):
+    msg = _doh_post(name, rtype, server, timeout)
+    want = dns.rdatatype.from_text(rtype)
+    return sorted({rr.address for ans in msg.answer for rr in ans if rr.rdtype == want})
+
+
+def udp53_resolve(name, server, timeout):
+    q = dns.message.make_query(name, "A")
+    r = dns.query.udp(q, where=server, timeout=timeout)
+    return sorted({rr.address for ans in r.answer for rr in ans
+                   if rr.rdtype == dns.rdatatype.A})
+
+
+def system_resolve(name):
+    try:
+        infos = socket.getaddrinfo(name, 443, socket.AF_INET, socket.SOCK_STREAM)
+        return sorted({i[4][0] for i in infos})
+    except OSError:
+        return []
+
+
+def is_private(ip):
+    try:
+        a = ipaddress.ip_address(ip)
+        return a.is_private or a.is_loopback or a.is_unspecified
+    except ValueError:
+        return False
+
+
+def dns_verdict(truth, sysip, u53):
+    """Low-false-positive strategy: a mere IP difference is NOT tampering
+    (CDN/anycast returns different IPs per query). Only high-confidence signals."""
+    truth, sysip, u53 = set(truth), set(sysip), set(u53)
+    if not truth:
+        return "?", ""                             # no reference, don't judge
+    if (sysip or u53) and any(is_private(ip) for ip in sysip | u53) \
+            and not any(is_private(ip) for ip in truth):
+        return "HIJACK-blockpage", ""              # redirect to a private/local IP
+    if not sysip and not u53:
+        return "DNS-BLOCK", ""                     # DoH resolves, resolver empty/NXDOMAIN
+    if truth.isdisjoint(sysip | u53):
+        return "ok", "different IPs (probably CDN)"
+    return "ok", ""
+
+
+def dns_test(name, timeout):
+    """Use DoH as the trusted reference; compare system and direct-53 answers."""
+    res = {"truth": [], "system": [], "udp53": [], "verdict": "", "note": ""}
+    err = ""
+    for srv in ("cloudflare", "google", "adguard"):
+        try:
+            res["truth"] = doh_resolve(name, DOH_SERVERS[srv], timeout)
+            break
+        except Exception as e:
+            err = f"DoH failed ({type(e).__name__})"
+    if not res["truth"] and err:
+        res["note"] = err
+    res["system"] = system_resolve(name)
+    try:
+        res["udp53"] = udp53_resolve(name, "8.8.8.8", timeout)
+    except Exception as e:
+        res["udp53"] = []
+        res["note"] = (res["note"] + f" udp53:{type(e).__name__}").strip()
+    v, note = dns_verdict(res["truth"], res["system"], res["udp53"])
+    res["verdict"] = v
+    if note:
+        res["note"] = note
+    return res
+
+
+def dns_intercept_test(timeout=3):
+    """Transparent DNS proxy: send a plain-53 query to an address that cannot run a
+    resolver (TEST-NET-1, RFC 5737). Any answer at all = the network intercepts port 53."""
+    q = dns.message.make_query("example.com", "A")
+    try:
+        r = dns.query.udp(q, where="192.0.2.1", timeout=timeout, ignore_unexpected=True)
+        ips = sorted({rr.address for ans in r.answer for rr in ans
+                      if rr.rdtype == dns.rdatatype.A})
+        return {"verdict": "INTERCEPTED", "detail": f"answer from bogus resolver: {ips}"}
+    except dns.exception.Timeout:
+        return {"verdict": "ok", "detail": "no answer from 192.0.2.1 (expected)"}
+    except OSError as e:
+        return {"verdict": "?", "detail": type(e).__name__}
+    except Exception as e:
+        return {"verdict": "?", "detail": type(e).__name__}
+
+
+def dot_test(ip, sni, timeout):
+    """DNS-over-TLS (RFC 7858): TLS to :853, 2-byte length-prefixed query."""
+    ctx = ssl.create_default_context()
+    q = dns.message.make_query("example.com", "A").to_wire()
+    t0 = time.monotonic()
+    try:
+        with socket.create_connection((ip, 853), timeout=timeout) as s:
+            with ctx.wrap_socket(s, server_hostname=sni) as ts:
+                ts.sendall(struct.pack("!H", len(q)) + q)
+                hdr = ts.recv(2)
+                if len(hdr) < 2:
+                    return "bad-reply"
+                (n,) = struct.unpack("!H", hdr)
+                buf = b""
+                while len(buf) < n:
+                    chunk = ts.recv(n - len(buf))
+                    if not chunk:
+                        break
+                    buf += chunk
+                dns.message.from_wire(buf)
+                return f"open ({int((time.monotonic() - t0) * 1000)} ms)"
+    except socket.timeout:
+        return "BLOCKED (timeout)"
+    except ConnectionResetError:
+        return "BLOCKED (RST)"
+    except ConnectionRefusedError:
+        return "refused"
+    except ssl.SSLError as e:
+        return f"tls-error ({e.reason or type(e).__name__})"
+    except Exception as e:
+        return f"error ({type(e).__name__})"
+
+
+def doh_probe(server, timeout):
+    t0 = time.monotonic()
+    try:
+        _doh_post("example.com", "A", server, timeout)
+        return f"open ({int((time.monotonic() - t0) * 1000)} ms)"
+    except requests.exceptions.Timeout:
+        return "BLOCKED (timeout)"
+    except requests.exceptions.ConnectionError as e:
+        s = str(e).lower()
+        if "reset" in s:
+            return "BLOCKED (RST)"
+        if "name resolution" in s or "getaddrinfo" in s or "nodename" in s:
+            return "BLOCKED (no-dns)"
+        return f"error ({type(e).__name__})"
+    except Exception as e:
+        return f"error ({type(e).__name__})"
+
+
+def encrypted_dns_test(timeout):
+    """Is encrypted DNS (DoH/DoT) itself reachable — networks that force their own
+    resolver often block these."""
+    jobs = {}
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        for n, url in DOH_SERVERS.items():
+            jobs[ex.submit(doh_probe, url, timeout)] = f"DoH {n}"
+        for n, (ip, sni) in DOT_SERVERS.items():
+            jobs[ex.submit(dot_test, ip, sni, timeout)] = f"DoT {n}"
+        return {jobs[f]: f.result() for f in as_completed(jobs)}
+
+
+# ── TLS / SNI ─────────────────────────────────────────────────────────────────
+def tcp_open(host, port, timeout):
+    """Returns (ok, error_name, rtt_ms)."""
+    t0 = time.monotonic()
+    try:
+        s = socket.create_connection((host, port), timeout=timeout)
+        s.close()
+        return True, "", (time.monotonic() - t0) * 1000
+    except Exception as e:
+        return False, type(e).__name__, (time.monotonic() - t0) * 1000
+
+
+def tls_handshake(ip, sni, timeout):
+    """Returns (status, detail, elapsed_ms). elapsed is measured from the moment the
+    ClientHello is sent, so it can be compared against the TCP RTT."""
+    ctx = ssl._create_unverified_context()
+    t0 = None
+    try:
+        with socket.create_connection((ip, 443), timeout=timeout) as s:
+            t0 = time.monotonic()
+            with ctx.wrap_socket(s, server_hostname=sni):
+                return "ok", "", (time.monotonic() - t0) * 1000
+    except ssl.SSLError as e:
+        return "tls-error", type(e).__name__, _ms(t0)   # cert rejection etc. (not DPI)
+    except (ConnectionResetError, BrokenPipeError):
+        return "reset", "RST", _ms(t0)                  # reset during handshake → DPI suspected
+    except socket.timeout:
+        return "timeout", "timeout", _ms(t0)
+    except Exception as e:
+        return "fail", type(e).__name__, _ms(t0)
+
+
+def _ms(t0):
+    return (time.monotonic() - t0) * 1000 if t0 else 0.0
+
+
+def sni_test(domain, ip, timeout):
+    """If the real SNI gets reset but a harmless SNI passes → SNI-based DPI.
+    Also compares time-to-RST with the TCP RTT: an RST that arrives clearly faster
+    than a round trip to the server was injected by an in-path middlebox."""
+    tcp_ok, tcp_err, rtt = tcp_open(ip, 443, timeout)
+    if not tcp_ok:
+        return {"tcp": False, "verdict": "tcp-block", "detail": tcp_err}
+    real, real_d, t_real = tls_handshake(ip, domain, timeout)
+    if real == "ok":
+        return {"tcp": True, "verdict": "ok", "detail": "", "rtt_ms": round(rtt, 1)}
+    # control: harmless SNI to the same IP
+    ctrl, ctrl_d, _ = tls_handshake(ip, "example.com", timeout)
+    out = {"tcp": True, "rtt_ms": round(rtt, 1), "rst_ms": round(t_real, 1)}
+    injected = real == "reset" and rtt > 5 and t_real < rtt * 0.75
+    out["injected"] = injected
+    if real in ("reset", "timeout") and ctrl == "ok":
+        out["verdict"] = "SNI-DPI"
+        out["detail"] = f"{domain}:{real} / ctrl:ok"
+        if injected:
+            out["detail"] += f" / RST {t_real:.0f} ms < RTT {rtt:.0f} ms → in-path injection"
+        return out
+    if real in ("reset", "timeout"):
+        out["verdict"] = "tls-block?"
+        out["detail"] = f"{real}/ctrl:{ctrl}"
+        return out
+    out["verdict"] = "ok"
+    out["detail"] = real_d
+    return out
+
+
+# ── HTTP block page / transparent proxy ───────────────────────────────────────
+def blockpage_test(domain, timeout):
+    out = {"verdict": "ok", "detail": ""}
+    try:
+        r = requests.get(f"http://{domain}", timeout=timeout, allow_redirects=True,
+                         headers={"User-Agent": UA})
+        body = r.text[:8000].lower()
+        final = r.url.lower()
+        for sig in BLOCKPAGE_SIGNS:
+            if sig in body or sig in final:
+                out["verdict"] = "BLOCKPAGE"
+                out["detail"] = f"sign='{sig}' url={r.url}"
+                return out
+        # did it redirect to a completely different host than its own domain
+        if domain.split(".")[-2] not in final and "://" in final:
+            out["detail"] = f"redirected → {r.url}"
+    except requests.exceptions.RequestException as e:
+        out["verdict"] = "unreachable"
+        out["detail"] = type(e).__name__
+    return out
+
+
+def http_proxy_test(timeout):
+    """Transparent HTTP proxy / filter appliance: look for tell-tale response headers
+    on a plain-HTTP fetch of a neutral page."""
+    try:
+        r = requests.get("http://example.com/", timeout=timeout, allow_redirects=False,
+                         headers={"User-Agent": UA})
+    except requests.exceptions.RequestException as e:
+        return {"verdict": "unreachable", "detail": type(e).__name__, "headers": {}}
+    hdrs = {k.lower(): v for k, v in r.headers.items()}
+    hits = [h for h in PROXY_HEADERS if h in hdrs]
+    server = hdrs.get("server", "").lower()
+    if any(p in server for p in PROXY_SERVERS):
+        hits.append(f"server={server}")
+    if r.status_code in (301, 302, 303, 307) and "example.com" not in hdrs.get("location", ""):
+        hits.append(f"redirect→{hdrs.get('location')}")
+    if hits:
+        return {"verdict": "PROXY", "detail": ", ".join(hits),
+                "headers": {h: hdrs[h] for h in PROXY_HEADERS if h in hdrs}}
+    return {"verdict": "ok", "detail": f"status {r.status_code}, server={server or '?'}",
+            "headers": {}}
+
+
+# ── ECH / encrypted-SNI ───────────────────────────────────────────────────────
+def ech_test(domain, timeout):
+    """ECH support: does the HTTPS/SVCB RR carry an 'ech' param (queried via DoH).
+    ECH encrypts the SNI → defeats SNI-based DPI."""
+    for srv in ("cloudflare", "google"):
+        try:
+            msg = _doh_post(domain, "HTTPS", DOH_SERVERS[srv], timeout)
+            for ans in msg.answer:
+                if ans.rdtype == dns.rdatatype.HTTPS:
+                    for rr in ans:
+                        if "ech=" in rr.to_text():
+                            return True
+            return False
+        except Exception:
+            continue
+    return None
+
+
+# ── UDP egress: STUN + QUIC ───────────────────────────────────────────────────
+def stun_udp_test(host="stun.l.google.com", port=19302, timeout=4):
+    """STUN binding request → response. Does UDP egress work (DPI/port block)."""
+    msg = b"\x00\x01\x00\x00\x21\x12\xa4\x42" + os.urandom(12)  # RFC 5389
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        s.sendto(msg, (host, port))
+        data, _ = s.recvfrom(1500)
+        return "open" if data[:2] == b"\x01\x01" else "bad-reply"
+    except socket.timeout:
+        return "BLOCKED (timeout)"
+    except OSError as e:
+        return f"error ({type(e).__name__})"
+    finally:
+        s.close()
+
+
+def stun_multi(timeout):
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futs = {ex.submit(stun_udp_test, h, p, timeout): f"{h}:{p}"
+                for h, p in STUN_SERVERS}
+        return {futs[f]: f.result() for f in as_completed(futs)}
+
+
+def quic_vn_packet():
+    """A QUIC long-header packet with a reserved (greased) version, padded to 1200
+    bytes. RFC 9000 §6: a server MUST answer with a Version Negotiation packet.
+    No crypto needed — a clean 'is UDP/443 QUIC egress alive' probe."""
+    dcid, scid = os.urandom(8), os.urandom(8)
+    hdr = b"\xc0" + b"\x1a\x2a\x3a\x4a" + bytes([len(dcid)]) + dcid + bytes([len(scid)]) + scid
+    return hdr.ljust(1200, b"\x00"), dcid
+
+
+def quic_test(host, port=443, timeout=4):
+    pkt, dcid = quic_vn_packet()
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        s.sendto(pkt, (host, port))
+        data, _ = s.recvfrom(1500)
+        if len(data) > 5 and data[0] & 0x80 and data[1:5] == b"\x00\x00\x00\x00":
+            return "open"
+        return "bad-reply"
+    except socket.timeout:
+        return "BLOCKED (timeout)"
+    except OSError as e:
+        return f"error ({type(e).__name__})"
+    finally:
+        s.close()
+
+
+def quic_multi(timeout):
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        futs = {ex.submit(quic_test, h, p, timeout): f"{h}:{p}" for h, p in QUIC_SERVERS}
+        return {futs[f]: f.result() for f in as_completed(futs)}
+
+
+# ── IPv6 ──────────────────────────────────────────────────────────────────────
+def ipv6_test(timeout):
+    if not socket.has_ipv6:
+        return {"verdict": "unavailable", "detail": "no IPv6 support in this Python"}
+    for ip in ("2606:4700:4700::1111", "2001:4860:4860::8888"):
+        try:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            s.settimeout(timeout)
+            s.connect((ip, 443))
+            s.close()
+            return {"verdict": "open", "detail": f"TCP 443 to {ip}"}
+        except socket.timeout:
+            last = "timeout"
+        except OSError as e:
+            last = type(e).__name__
+            if getattr(e, "errno", None) in (101, 51, 65, 10051):   # ENETUNREACH family
+                return {"verdict": "unavailable", "detail": "no IPv6 route"}
+    return {"verdict": "BLOCKED" if last == "timeout" else "unavailable", "detail": last}
+
+
+# ── SSH / throughput ──────────────────────────────────────────────────────────
+def ssh_probe(host="github.com", port=22, timeout=5):
+    """Grab a real SSH banner → is an SSH tunnel (ssh -D SOCKS) possible here."""
+    try:
+        s = socket.create_connection((host, port), timeout=timeout)
+        s.settimeout(timeout)
+        banner = s.recv(64)
+        s.close()
+        if banner.startswith(b"SSH-"):
+            return "open", banner.decode(errors="replace").strip()
+        return "responded", ""
+    except socket.timeout:
+        return "BLOCKED (timeout)", ""
+    except OSError as e:
+        return "error", type(e).__name__
+
+
+def speed_test(mbytes=10, timeout=30):
+    """Rough downstream throughput from Cloudflare's speed endpoint (Mbit/s)."""
+    url = f"https://speed.cloudflare.com/__down?bytes={mbytes * 1_000_000}"
+    t0 = time.monotonic()
+    n = 0
+    try:
+        with requests.get(url, stream=True, timeout=timeout, headers={"User-Agent": UA}) as r:
+            r.raise_for_status()
+            for chunk in r.iter_content(65536):
+                n += len(chunk)
+                if time.monotonic() - t0 > timeout:
+                    break
+    except Exception as e:
+        return {"mbps": 0.0, "bytes": n, "detail": type(e).__name__}
+    dt = max(time.monotonic() - t0, 1e-3)
+    return {"mbps": round(n * 8 / dt / 1e6, 1), "bytes": n, "seconds": round(dt, 2), "detail": ""}
+
+
+# ── port / protocol ───────────────────────────────────────────────────────────
+def port_test(label, port, timeout):
+    """timeout = packets dropped (real filter). refused/RST = packet got out → no filter."""
+    try:
+        s = socket.create_connection((PORTQUIZ, port), timeout=timeout)
+        s.close()
+        return label, "open"
+    except socket.timeout:
+        return label, "BLOCKED (timeout)"
+    except ConnectionRefusedError:
+        return label, "passed (refused)"
+    except ConnectionResetError:
+        return label, "passed (RST)"
+    except OSError as e:
+        return label, f"error ({type(e).__name__})"
+
+
+# ── Tor ───────────────────────────────────────────────────────────────────────
+def find_tor():
+    """Locate a tor binary: PATH first, then the usual Tor Browser / Expert Bundle spots."""
+    p = shutil.which("tor")
+    if p:
+        return p
+    cands = []
+    if sys.platform.startswith("win"):
+        for base in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("PROGRAMFILES", ""),
+                     os.environ.get("USERPROFILE", ""), os.path.join(os.path.expanduser("~"), "Desktop")):
+            if base:
+                cands += [os.path.join(base, "Tor Browser", "Browser", "TorBrowser", "Tor", "tor.exe"),
+                          os.path.join(base, "tor", "tor.exe"),
+                          os.path.join(base, "Tor", "tor.exe")]
+        exe_dir = os.path.dirname(getattr(sys, "executable", "") or "")
+        cands.append(os.path.join(exe_dir, "tor.exe"))
+    elif sys.platform == "darwin":
+        cands += ["/Applications/Tor Browser.app/Contents/MacOS/Tor/tor",
+                  "/opt/homebrew/bin/tor", "/usr/local/bin/tor"]
+    else:
+        home = os.path.expanduser("~")
+        cands += [os.path.join(home, "tor-browser", "Browser", "TorBrowser", "Tor", "tor"),
+                  "/usr/bin/tor", "/usr/local/bin/tor"]
+    for c in cands:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+def tor_test(timeout=60):
+    tor = find_tor()
+    if not tor:
+        return {"verdict": "tor-missing", "detail": "tor is not installed (put tor/tor.exe on PATH)"}
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+        cfg = os.path.join(d, "torrc")
+        with open(cfg, "w", encoding="utf-8") as f:
+            f.write(f"SocksPort 0\nDataDirectory {os.path.join(d, 'data')}\nLog notice stdout\n")
+        try:
+            p = subprocess.Popen([tor, "-f", cfg], stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                                 errors="replace")
+        except OSError as e:
+            return {"verdict": "tor-missing", "detail": f"could not start tor: {e}"}
+        start = time.time()
+        last = ""
+        try:
+            for line in p.stdout:
+                last = line.strip()
+                if "Bootstrapped 100%" in line:
+                    return {"verdict": "ok", "detail": "bootstrap 100%"}
+                if time.time() - start > timeout:
+                    break
+            return {"verdict": "BLOCKED?", "detail": f"never reached 100%. last: {last[-120:]}"}
+        finally:
+            try:
+                p.terminate()
+                p.wait(timeout=5)
+            except Exception:
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+
+
+# ── advice ────────────────────────────────────────────────────────────────────
+def tunnel_advice(report):
+    """Tunnel methods that bypass SNI-DPI/filtering — advice based on observations."""
+    out = []
+    ssh_status = report.get("ssh", "")
+    sni_dpi = any(d["sni"]["verdict"] == "SNI-DPI" for d in report["sites"].values())
+    p443 = not report["ports"].get("HTTPS 443", "").startswith("BLOCKED")
+    tor_v = report.get("tor", {}).get("verdict")
+    quic = report.get("quic", "")
+
+    if ssh_status == "open":
+        out.append(("g", "SSH tunnel works → `ssh -D 1080 user@server`, then SOCKS5"))
+        out.append(("d", "  127.0.0.1:1080. All traffic inside SSH, DPI can't see it."))
+    elif ssh_status.startswith("BLOCKED"):
+        out.append(("r", "SSH (22) blocked → use a server listening for SSH on 443."))
+
+    if p443 and sni_dpi:
+        out.append(("g", "443 open + SNI-DPI only → SNI-hiding tunnels PASS:"))
+        out.append(("d", "  • Shadowsocks / VLESS+TLS / Trojan-Go  (harmless or empty SNI)"))
+        out.append(("d", "  • wstunnel / websocket-over-443  (tunnel inside WebSocket)"))
+        out.append(("d", "  • OpenVPN-TCP-443 or WireGuard-over-TCP (udp2raw/wstunnel)"))
+        out.append(("d", "  • Cloudflare WARP (MASQUE/443) — engage.cloudflareclient.com"))
+    elif p443:
+        out.append(("g", "443 open → TLS-based tunnels (Shadowsocks/VLESS) should work."))
+    if quic == "open":
+        out.append(("g", "QUIC/UDP-443 open → HTTP/3-based tunnels (MASQUE, Hysteria, TUIC) pass."))
+    elif quic.startswith("BLOCKED"):
+        out.append(("y", "QUIC/UDP-443 blocked → HTTP/3 disabled here; browsers fall back to TCP."))
+
+    if tor_v == "ok":
+        out.append(("g", "Tor works directly → easiest tunnel: Tor Browser / `tor` SOCKS 9050."))
+    elif tor_v in (None, ""):
+        out.append(("d", "Tor not tested (--no-tor). If blocked, try obfs4/Snowflake bridge."))
+    elif tor_v == "tor-missing":
+        out.append(("d", "Tor binary not found — install tor (or Tor Expert Bundle on Windows) to test."))
+    else:
+        out.append(("y", "Tor blocked directly → try obfs4 / Snowflake / meek bridge."))
+    return out
+
+
+def vpn_advice(report):
+    """Why is the VPN failing → diagnosis + advice. Returns a list of (color, text)."""
+    out = []
+    vpn_blocked = sorted(
+        dom for dom, d in report["sites"].items()
+        if d["cat"].startswith(("vpn-api", "vpn-info"))
+        and d["sni"]["verdict"] not in ("ok", "?", "no-dns"))
+    udp_ok = report.get("udp", "") == "open"
+    p443 = not report["ports"].get("HTTPS 443", "").startswith("BLOCKED")
+
+    if vpn_blocked:
+        out.append(("r", f"VPN site/API blocked (SNI-DPI): {', '.join(vpn_blocked)}"))
+        out.append(("d", "  → the app can't log in / pull config = it FAILS at connect (API, not tunnel)."))
+        out.append(("d", "  → fix: set the app up on another network and copy the config; or ECH/DoH;"))
+        out.append(("d", "    or pick a provider whose API isn't blocked."))
+    if not udp_ok:
+        out.append(("r", "UDP egress blocked → WireGuard / OpenVPN-UDP FAIL."))
+        out.append(("d", f"  → switch to TCP: OpenVPN-TCP-443 (443 open: {p443}),"))
+        out.append(("d", "    WireGuard-over-TCP (wstunnel/udp2raw), OpenConnect, Shadowsocks."))
+    else:
+        out.append(("g", "UDP egress open → WireGuard / OpenVPN-UDP worth trying."))
+        out.append(("d", "  → definitive end-to-end test: filterscope wg --config <wg.conf>"))
+    if not vpn_blocked and udp_ok:
+        out.append(("g", "No clear blocking at the VPN layer; the issue may be config/provider side."))
+    enc = report.get("dns_encrypted", {})
+    if enc and all(v.startswith("BLOCKED") for v in enc.values()):
+        out.append(("r", "All DoH/DoT resolvers blocked → the network forces its own DNS; apps using "
+                         "encrypted DNS (Firefox DoH, Android Private DNS) will fail."))
+    if report.get("dns_intercept", {}).get("verdict") == "INTERCEPTED":
+        out.append(("r", "Port-53 DNS is transparently intercepted → 'use 8.8.8.8' does NOTHING here; "
+                         "only DoH/DoT (if reachable) or a tunnel gives honest DNS."))
+    return out
+
+
+# ── evidence helpers ──────────────────────────────────────────────────────────
+def flagged(report):
+    """Everything that counts as interference, as short strings."""
+    out = []
+    for dom, d in report.get("sites", {}).items():
+        for k in ("dns", "sni", "blockpage"):
+            v = d[k]["verdict"]
+            if v not in NEUTRAL:
+                out.append(f"{dom}: {k}={v}")
+    for label, st in report.get("ports", {}).items():
+        if st.startswith("BLOCKED"):
+            out.append(f"port {label}")
+    if report.get("udp", "").startswith("BLOCKED"):
+        out.append("udp egress")
+    if report.get("quic", "").startswith("BLOCKED"):
+        out.append("quic/udp-443")
+    tv = report.get("tor", {}).get("verdict")
+    if tv not in ("ok", "", None, "tor-missing"):
+        out.append(f"tor={tv}")
+    for k, v in report.get("dns_encrypted", {}).items():
+        if v.startswith("BLOCKED"):
+            out.append(f"encrypted-dns {k}")
+    if report.get("dns_intercept", {}).get("verdict") == "INTERCEPTED":
+        out.append("dns-53 intercepted")
+    if report.get("http_proxy", {}).get("verdict") == "PROXY":
+        out.append("http transparent proxy")
+    return out
+
+
+def history_record(report):
+    """Compact record for the time series (evidence mode)."""
+    sites_blocked = sorted(
+        f"{dom}:{k}={d[k]['verdict']}"
+        for dom, d in report["sites"].items()
+        for k in ("dns", "sni", "blockpage")
+        if d[k]["verdict"] not in NEUTRAL)
+    return {
+        "ts": report["ts"],
+        "net": report["net"]["id"],
+        "label": report["net"].get("label", ""),
+        "blocked": sites_blocked,
+        "ports_blocked": [l for l, s in report["ports"].items() if s.startswith("BLOCKED")],
+        "udp": report.get("udp", ""),
+        "quic": report.get("quic", ""),
+        "tor": report.get("tor", {}).get("verdict", ""),
+        "dns_encrypted_blocked": sorted(k for k, v in report.get("dns_encrypted", {}).items()
+                                        if v.startswith("BLOCKED")),
+        "dns_intercept": report.get("dns_intercept", {}).get("verdict", ""),
+        "http_proxy": report.get("http_proxy", {}).get("verdict", ""),
+    }
+
+
+def anonymize(report):
+    """Shareable report: strip local network identity and resolver answers."""
+    r = copy.deepcopy(report)
+    r["net"] = {"id": report["net"]["id"], "label": report["net"].get("label", "")}
+    for d in r.get("sites", {}).values():
+        for k in ("system", "udp53"):
+            d.get("dns", {}).pop(k, None)
+    r.get("http_proxy", {}).pop("headers", None)
+    return r

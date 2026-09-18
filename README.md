@@ -1,111 +1,134 @@
 # filterscope
 
-A small tool that measures the **filtering/censorship** behavior of the network you're connected to, legitimately. For digital rights / transparency — in the spirit of EFF & Tor.
+Measure the **filtering / censorship** behaviour of the network you are on — legitimately, with your own traffic. For digital rights and transparency, in the spirit of EFF and Tor.
 
-> ⚠️ Run it only **from your own device, with your own traffic**. The tool uses a **clean allowlist** (well-known news / social / privacy / dev sites) — it does **not ping** inappropriate or illegal content. This is a deliberate choice to avoid the controversial-domain problem of global test lists like OONI.
+> Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
+
+Works on **Linux, Windows and macOS**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 
 ## What it measures
 
-| Test | Method |
+| Probe | How |
 |---|---|
-| **DNS tampering / hijack** | Compares the system resolver + direct `@8.8.8.8` (port 53) answer against DoH (over HTTPS, unhijackable) as the reference. To reduce false positives, only private-IP redirection and NXDOMAIN injection are flagged; a mere IP difference is treated as CDN. |
-| **TLS / SNI blocking (DPI)** | Connects to the real IP; if the handshake with the correct SNI gets an RST but a harmless SNI passes → SNI-based deep packet inspection. |
-| **Block page** | Looks for signatures like BTK/5651, FortiGuard, Sophos, Squid. |
-| **Outbound port / VPN protocol** | Tests outbound ports via `portquiz.net`. `timeout` = packet drop (real block); `refused`/`RST` = packet got through (no filter). |
-| **UDP egress** | Multiple STUN servers/ports — does UDP egress work (indicator for WireGuard/IPsec). |
-| **VPN diagnosis** | Whether VPN site/API domains (Proton, Mullvad, Nord, Windscribe) are blocked by SNI-DPI → if the app can't log in, explains why it fails + advice (TCP-443, Mullvad, manual config). |
-| **AI tools** | Whether ChatGPT, Claude, Gemini, Perplexity, Copilot, HuggingFace are reachable (often blocked at schools). |
-| **ECH / encrypted-SNI** | Whether the site publishes `ech` in its HTTPS/SVCB DNS record. Combined with SNI-DPI detection: infers "this block can be bypassed with ECH". |
-| **Tor** | A real `tor` bootstrap — does it reach 100%. |
+| **DNS tampering / hijack** | System resolver and direct `@8.8.8.8` are compared with DoH as the reference. Only private-IP redirection and NXDOMAIN injection are flagged; a mere IP difference is treated as CDN (low false-positive rate). |
+| **TLS / SNI blocking (DPI)** | TLS to the real IP with the real server name vs. a harmless control name. Reset/timeout only with the real name = SNI-based deep packet inspection. |
+| **In-path RST injection** | Time-to-RST is compared with the TCP round trip. An RST that arrives faster than a round trip was injected by a middlebox, not sent by the server. |
+| **Block page** | Signatures of BTK/5651, FortiGuard, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, GoGuardian, Netsweeper, Smoothwall, Palo Alto, Zscaler, Forcepoint, Barracuda… |
+| **Outbound TCP ports** | Via `portquiz.net` (listens on every port). `timeout` = packets dropped (real block); `refused`/`RST` = the packet got out. |
+| **UDP egress** | STUN binding requests to several servers/ports (indicator for WireGuard / IPsec). |
+| **QUIC / UDP-443** | A QUIC version-negotiation probe (RFC 9000 §6) to Cloudflare and Google — no crypto, unambiguous. Tells you if HTTP/3 and QUIC tunnels can leave the network. |
+| **Encrypted DNS** | Is DoH (Cloudflare, Google, AdGuard) / DoT (Cloudflare, Google, Quad9) itself reachable. |
+| **Port-53 interception** | A plain DNS query is sent to `192.0.2.1` (TEST-NET-1, cannot run a resolver). Any answer proves the network transparently proxies DNS — "just use 8.8.8.8" does nothing there. |
+| **HTTP transparent proxy** | Filter-appliance headers (`Via`, `X-Squid-*`, BlueCoat, FortiGate, Sophos…) on a neutral plain-HTTP fetch. |
+| **ECH / encrypted SNI** | Does the site publish `ech` in its HTTPS record? Combined with SNI-DPI detection it infers "this block is bypassable with ECH". |
+| **IPv6 egress**, **SSH egress**, **throughput** (`--speed`) | |
+| **VPN diagnosis** | Are VPN sites/APIs (Proton, Mullvad, Nord, Windscribe, AirVPN) blocked at the SNI layer — explains why an app fails at login, and what to do. |
+| **Tor** | A real `tor` bootstrap to 100 %. |
 
-## Tools
-
-| File | Job |
-|---|---|
-| `filtertest.py` | Main scan. Appends a compact record to the evidence history (JSONL) on every run. |
-| `compare.py` | Compares two `--json` reports (e.g. school ↔ mobile) — reveals network-specific filtering. |
-| `history.py` | Shows the evidence history as a timeline + changes (new/lifted blocks). |
-| `wgcheck.py` | Tests whether a UDP VPN works on this network via a real WireGuard handshake (Noise_IKpsk2). Uses your own VPN config. |
-| `tui.py` | Live TUI dashboard (Textual) — tests run in the background, tables fill in real time. Keys: `r` rescan, `t` toggle Tor, `q` quit. |
-| `warp.py` | Install/manage Cloudflare WARP **without AUR** (wgcf + official wireguard-tools). SNI-DPI bypass tunnel. `setup`/`test`/`up`/`down`/`status`/`autostart`. |
-| `warp-masque.sh` | Installs the official Cloudflare WARP client (from Cloudflare's own `.deb`, no AUR) in **MASQUE/HTTP3** mode — traffic looks like normal HTTPS, bypasses WireGuard-DPI. Driven by `filterscope warp masque`. |
+Every finding feeds a **VPN diagnosis** and a **tunnel / circumvention** advice block, plus an evidence trail (JSON, anonymized JSON, HTML, time-series history).
 
 ## Install
 
-```bash
-pip install -r requirements.txt   # requests, dnspython, cryptography, textual, rich
-# the Tor test needs `tor` installed on the system
+**Binary** (no Python needed): download `filterscope-windows-x86_64.exe`, `filterscope-linux-x86_64`, `filterscope-macos-arm64` or `filterscope-macos-x86_64` from [releases](https://github.com/tunnelmoth/filterscope/releases). Verify with `SHA256SUMS.txt`.
 
-./install.sh                       # installs the 'filterscope' terminal command (~/.local/bin)
-```
-
-After installing, from anywhere:
+**Python** (3.10+):
 
 ```bash
-filterscope                 # live TUI
-filterscope scan --label school --json school.json
-filterscope compare school.json mobile.json
-filterscope history
-filterscope wg --config /etc/wireguard/wg0.conf
+pipx install git+https://github.com/tunnelmoth/filterscope     # or: pip install --user .
 ```
+
+The Tor test needs a `tor` binary: `apt/pacman/brew install tor`, or on Windows the [Tor Expert Bundle](https://www.torproject.org/download/tor/) (`tor.exe` on PATH, next to the exe, or an installed Tor Browser is found automatically).
 
 ## Usage
 
 ```bash
-./tui.py                                         # live TUI dashboard
-./filtertest.py                                  # full scan (CLI)
-./filtertest.py --no-tor                         # skip the Tor test (faster)
-./filtertest.py --label school --json school.json   # labeled + JSON output
-./filtertest.py --anon-json share.json           # PII-free shareable report
-./filtertest.py --timeout 8                      # connection timeout (s)
-
-# evidence: run the same test on two networks, compare
-./filtertest.py --label school --json school.json
-./filtertest.py --label mobile --json mobile.json   # after switching to mobile data
-./compare.py school.json mobile.json
-./history.py                                     # changes over time
-
-# does WireGuard work on this network (with your own config)
-./wgcheck.py --config /etc/wireguard/wg0.conf
-
-# bypass the filter with Cloudflare WARP (no AUR, no server needed)
-filterscope warp test         # reachable on this network?
-filterscope warp up           # bring up the WireGuard tunnel (sudo); autoport if no data
-filterscope warp status       # warp=on?
-filterscope warp down         # stop
-
-# if WireGuard is throttled by DPI → MASQUE (official client, looks like HTTP3)
-filterscope warp masque up    # install official client + connect via MASQUE (sudo)
-filterscope warp masque status
-filterscope warp masque down
+filterscope                                  # live TUI dashboard (r rescan, t Tor, s save, q quit)
+filterscope scan                             # full CLI scan; exit code 2 if interference found
+filterscope scan --quick                     # sites + ports + UDP + DNS only, no Tor/ECH/block-page
+filterscope scan --categories ai,vpn-api     # scope to categories (filterscope categories lists them)
+filterscope scan --domain example.org        # add your own domains (--domains-file too)
+filterscope scan --label school --json school.json --html school.html
+filterscope scan --anon-json share.json      # PII-free shareable report
+filterscope scan --speed                     # also measure downstream throughput
+filterscope report school.json               # re-render a saved JSON (or --html out.html)
 ```
 
-### Periodic evidence (cron)
+### Evidence: two networks, one diff
+
+```bash
+filterscope scan --label school --json school.json
+filterscope scan --label mobile --json mobile.json    # after switching to mobile data
+filterscope compare school.json mobile.json
+```
+
+Anything blocked on one network but open on the other is filtering **specific to that network**.
+
+### Evidence over time
+
+Every scan appends a compact record to `~/.filterscope/history.jsonl`.
 
 ```cron
-*/30 * * * * cd /path/filterscope && ./filtertest.py --no-tor --label school >> ~/.filterscope/run.log 2>&1
+*/30 * * * * filterscope scan --no-tor --label school --quiet >> ~/.filterscope/run.log 2>&1
 ```
-Scans every half hour and writes to history. Use `./history.py` to track "what the school added and when".
 
-## Interpreting the output
+```bash
+filterscope history                          # timeline + "new block / lifted" per network
+filterscope history --network school --last 10
+```
 
-- **SNI-DPI** → the network reads the server name in the TLS ClientHello (DPI) and RSTs specific sites. Application-layer content filter.
-- **HIJACK-blockpage** → DNS redirects to a private/local IP (block page server).
-- **DNS-BLOCK** → the local resolver returns empty/NXDOMAIN while DoH resolves.
-- `timeout` on an outbound port → that port is blocked.
+### Does my VPN work here?
 
-To argue that filtering is "unauthorized/improper": capture a timestamped record with `--json`, run the same test on **a different network** (e.g. mobile data), and show the difference.
+```bash
+filterscope wg --config /etc/wireguard/wg0.conf      # real WireGuard handshake (Noise_IKpsk2) to YOUR server
+```
+
+### Bypass with Cloudflare WARP (Linux)
+
+```bash
+filterscope warp test          # reachable on this network?
+filterscope warp up            # WireGuard tunnel (sudo); automatic port search if no data flows
+filterscope warp masque up     # official client in MASQUE/HTTP3 mode when WireGuard is throttled
+filterscope warp status / down
+```
+
+On Windows and macOS use the official 1.1.1.1 app and pick MASQUE in its settings.
+
+## Interpreting results
+
+- **SNI-DPI** — the network reads the server name in the TLS ClientHello and resets specific sites. Application-layer content filter. If the note says *in-path injection*, the RST came from a middlebox, not the server.
+- **HIJACK-blockpage** — DNS answers with a private/local IP (a block-page server).
+- **DNS-BLOCK** — the local resolver returns nothing while DoH resolves.
+- **INTERCEPTED** (port 53) — the network answers DNS on behalf of every address; changing your resolver to 8.8.8.8 is ignored.
+- **BLOCKED** on DoH/DoT — encrypted DNS is blocked; apps using it (Firefox DoH, Android Private DNS) fail.
+- **BLOCKED** on a port / QUIC / UDP — packets to that port are dropped.
+- **PROXY** — a transparent HTTP proxy or filter appliance is rewriting plain HTTP.
+
+To argue that filtering is improper: keep the timestamped JSON, run the same scan on **a different network** and show the diff. The HTML report is self-contained and printable.
+
+## JSON schema
+
+`schema: 2`. Top level: `ts`, `version`, `net` (id/label/ssid/gateway/resolver/os), `sites{domain: {cat, dns, sni, blockpage, ech}}`, `ports`, `udp`, `udp_detail`, `quic`, `quic_detail`, `ipv6`, `dns_encrypted`, `dns_intercept`, `http_proxy`, `ssh`, `tor`, `speed`, `flagged[]`. The anonymized variant drops `net.*` except id/label, resolver answers and proxy headers.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest                                  # offline unit tests
+pyinstaller packaging/filterscope.spec  # single-file binary → dist/
+```
+
+CI runs the tests on Linux, Windows and macOS; a `v*` tag builds and publishes the binaries.
 
 ## Roadmap
 
-- [x] Evidence mode: time-series JSONL + change tracking (`history.py`)
-- [x] Network comparison (school ↔ mobile) (`compare.py`)
-- [x] ECH / encrypted-SNI detection + SNI-DPI bypass inference
-- [x] Real WireGuard handshake test (`wgcheck.py`)
-- [x] Anonymized shareable report (`--anon-json`)
-- [ ] Multi DoH/DoT comparison, IPv6 tests
-- [ ] Anonymous aggregate report server (opt-in)
+- [x] Evidence mode: time-series + change tracking
+- [x] Network comparison, anonymized reports, HTML report
+- [x] ECH detection + bypass inference, real WireGuard handshake test
+- [x] Encrypted DNS, DNS interception, QUIC, transparent proxy, RST injection timing
+- [x] Windows / macOS, single-file binaries
+- [ ] DoQ (DNS over QUIC) and HTTP/3 page fetch
+- [ ] Opt-in anonymous aggregate report server
 
 ## License
 
-GPL-3.0. Free software — use it, study it, modify it, share it.
+GPL-3.0-or-later. Free software — use it, study it, modify it, share it.

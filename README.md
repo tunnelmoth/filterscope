@@ -49,7 +49,9 @@ Works on **Linux, Windows and macOS**. Single-file binaries on the [releases pag
 
 ## Install
 
-**Binary** (no Python needed): download `filterscope-windows-x86_64.exe`, `filterscope-linux-x86_64` or `filterscope-macos-arm64` from [releases](https://github.com/tunnelmoth/filterscope/releases). Verify with `SHA256SUMS.txt`. Intel Macs: use the Python install below.
+**Windows, no terminal**: download and run `filterscope-setup-<version>.exe` from [releases](https://github.com/tunnelmoth/filterscope/releases) — it puts *filterscope* in the Start menu. Press **Scan**, read the verdict, click **Open report**. (Or grab the portable `filterscope-gui-windows-x86_64.exe`.)
+
+**Binary** (no Python needed): download `filterscope-windows-x86_64.exe`, `filterscope-linux-x86_64` or `filterscope-macos-arm64` (terminal) or the `filterscope-gui-*` windowed builds from [releases](https://github.com/tunnelmoth/filterscope/releases). Verify with `SHA256SUMS.txt`. Intel Macs: use the Python install below.
 
 **Python** (3.10+):
 
@@ -62,6 +64,7 @@ The Tor test needs a `tor` binary: `apt/pacman/brew install tor`, or on Windows 
 ## Usage
 
 ```bash
+filterscope gui                              # desktop window (also: filterscope-gui / the installer's shortcut)
 filterscope                                  # live TUI: tabs, score, filter, detail, compare, save
 filterscope scan                             # full CLI scan with progress; exit code 2 if interference
 filterscope scan --profile quick             # sites + ports + UDP/QUIC + DNS, no Tor/MITM/proxy probes
@@ -76,6 +79,10 @@ filterscope scan --flagged-only --speed      # only affected sites in the table;
 filterscope report school.json               # re-render a saved JSON (or --html out.html)
 filterscope config set label school          # persistent defaults (timeout, categories, domains, …)
 ```
+
+### Desktop window
+
+**Scan** runs the same engine; the gauge and the sentence under it are the verdict. **Open report** renders the HTML evidence report in your browser; **HTML…/JSON…** save it; **Compare** diffs against the previous stored scan of this network; the *Sites* tab has a filter box, an *affected only* toggle and a detail panel per row. F5 rescans.
 
 ### TUI keys
 

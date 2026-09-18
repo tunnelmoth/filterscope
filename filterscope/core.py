@@ -879,7 +879,8 @@ def vpn_advice(report):
         dom for dom, d in report["sites"].items()
         if d["cat"].startswith(("vpn-api", "vpn-info"))
         and d["sni"]["verdict"] not in ("ok", "?", "no-dns"))
-    udp_ok = report.get("udp", "") == "open"
+    udp = report.get("udp", "")
+    udp_ok = udp == "open"
     p443 = not report["ports"].get("HTTPS 443", "").startswith("BLOCKED")
 
     if vpn_blocked:
@@ -887,14 +888,16 @@ def vpn_advice(report):
         out.append(("d", "  → the app can't log in / pull config = it FAILS at connect (API, not tunnel)."))
         out.append(("d", "  → fix: set the app up on another network and copy the config; or ECH/DoH;"))
         out.append(("d", "    or pick a provider whose API isn't blocked."))
-    if not udp_ok:
+    if not udp:
+        out.append(("d", "UDP egress not tested in this scan (udp step skipped)."))
+    elif not udp_ok:
         out.append(("r", "UDP egress blocked → WireGuard / OpenVPN-UDP FAIL."))
         out.append(("d", f"  → switch to TCP: OpenVPN-TCP-443 (443 open: {p443}),"))
         out.append(("d", "    WireGuard-over-TCP (wstunnel/udp2raw), OpenConnect, Shadowsocks."))
     else:
         out.append(("g", "UDP egress open → WireGuard / OpenVPN-UDP worth trying."))
         out.append(("d", "  → definitive end-to-end test: filterscope wg --config <wg.conf>"))
-    if not vpn_blocked and udp_ok:
+    if not vpn_blocked and (udp_ok or not udp):
         out.append(("g", "No clear blocking at the VPN layer; the issue may be config/provider side."))
     enc = report.get("dns_encrypted", {})
     if enc and all(v.startswith("BLOCKED") for v in enc.values()):

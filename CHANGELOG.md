@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.1.0 — 2026-09-18
+
+### Desktop app (no terminal needed)
+- **`filterscope-gui`** — a Tkinter/ttk window: Scan button, score gauge, plain-English verdict,
+  technique badges, tabs for findings & advice / sites (filter, affected-only, per-row detail) /
+  egress & DNS / history, one-click **Open report** (HTML in the browser), Save HTML/JSON,
+  Compare with the previous scan, F5 to rescan. Same engine, same history as the CLI/TUI.
+- **Windows installer** `filterscope-setup-<version>.exe` (Inno Setup): Start-menu and optional
+  desktop shortcut, optional PATH entry for the command-line tool, clean uninstall. No admin needed.
+- Windowed binaries: `filterscope-gui-windows-x86_64.exe`, `filterscope-gui-linux-x86_64`,
+  `filterscope-gui-macos-arm64.app.zip`. `filterscope gui` opens the same window from the CLI build.
+- App icon.
+
+### Fixes
+- Advice no longer claims "UDP blocked" when the UDP step was skipped.
+
 ## 3.0.0 — 2026-09-18
 
 Major release: analysis engine, verification pass, fully parallel scanner, TLS-interception

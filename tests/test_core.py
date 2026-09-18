@@ -236,3 +236,24 @@ def test_score_small_sample_is_damped():
     r["sites"] = {"discord.com": r["sites"]["discord.com"]}
     r.update(ports={}, quic="open", dns_intercept={}, http_proxy={}, tor={}, ssh="open", dns_encrypted={})
     assert analysis.level(analysis.score(r)) in ("light", "moderate")
+
+
+def test_gui_module_imports_and_builds(monkeypatch):
+    import pytest
+    tk = pytest.importorskip("tkinter")
+    from filterscope import gui
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("no display")
+    app = gui.App(root)
+    assert app.nb.index("end") == 5
+    app.draw_gauge(42, "moderate")
+    root.destroy()
+
+
+def test_vpn_advice_udp_untested():
+    r = _report()
+    r["udp"] = ""
+    text = " ".join(t for _, t in core.vpn_advice(r))
+    assert "not tested" in text and "FAIL" not in text

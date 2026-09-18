@@ -1,6 +1,7 @@
 """filterscope command line.
 
   filterscope                          live TUI
+  filterscope gui                      desktop window (Tkinter)
   filterscope scan [opts]              CLI scan with progress; exit 2 on interference
   filterscope scan --watch 30          re-scan every 30 min, print what changed
   filterscope compare A.json B.json    diff two reports (school vs mobile)
@@ -158,6 +159,12 @@ def cmd_scan(a) -> int:
             return 0
 
 
+def cmd_gui(a) -> int:
+    from .gui import main as gui_main
+    gui_main()
+    return 0
+
+
 def cmd_tui(a) -> int:
     from .tui import run_tui
     run_tui(_scan_opts(a), a.outdir)
@@ -252,6 +259,9 @@ def build_parser():
     add_scan_args(p, tui=True)
     p.add_argument("--outdir", help="where 's' saves reports (default: cwd)")
     p.set_defaults(fn=cmd_tui)
+
+    p = sub.add_parser("gui", help="desktop window (no terminal needed)")
+    p.set_defaults(fn=cmd_gui)
 
     p = sub.add_parser("scan", help="CLI scan; exit code 2 if interference was found")
     add_scan_args(p)

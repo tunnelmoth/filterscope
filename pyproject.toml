@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "filterscope"
-version = "3.0.0"
+version = "3.1.0"
 description = "Measure network filtering/censorship legitimately — DNS, SNI-DPI, block pages, ports, UDP/QUIC, encrypted DNS, Tor — with your own traffic and a clean allowlist."
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -39,11 +39,14 @@ Issues = "https://github.com/tunnelmoth/filterscope/issues"
 [project.scripts]
 filterscope = "filterscope.cli:main"
 
+[project.gui-scripts]
+filterscope-gui = "filterscope.gui:main"
+
 [tool.setuptools.packages.find]
 include = ["filterscope*"]
 
 [tool.setuptools.package-data]
-filterscope = ["scripts/*.sh"]
+filterscope = ["scripts/*.sh", "assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

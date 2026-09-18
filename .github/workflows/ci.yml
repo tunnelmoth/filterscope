@@ -22,3 +22,4 @@ jobs:
       - run: python -m pytest -q
       - run: filterscope --version
       - run: filterscope categories
+      - run: python -c "import filterscope.gui, filterscope.tui"

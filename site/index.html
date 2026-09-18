@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>filterscope — see what your network blocks</title>
+<meta name="description" content="filterscope measures the filtering and censorship on the network you are connected to, using only your own traffic and a clean list of well-known sites. Windows, Android, Linux, macOS. Free software.">
+<meta property="og:title" content="filterscope — see what your network blocks">
+<meta property="og:description" content="Measure DNS tampering, SNI-DPI, TLS interception, blocked ports and more. One click, evidence you can share.">
+<meta property="og:image" content="assets/gui-overview.webp">
+<link rel="icon" href="assets/icon.png">
+<style>
+:root{--bg:#0b1020;--fg:#e8ecf5;--mut:#9aa4bd;--acc:#5b8cff;--acc2:#8ab4f8;--ok:#3ddc84;--bad:#ff6b6b;--warn:#ffb74d;--card:#131a2e;--line:#22304f;--r:14px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc2)}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+header.hero{position:relative;min-height:88vh;display:flex;align-items:center;overflow:hidden;
+  background:radial-gradient(1200px 600px at 20% -10%,#1d2b5a 0%,transparent 60%),radial-gradient(900px 500px at 100% 110%,#2a1a4f 0%,transparent 55%),var(--bg)}
+header.hero .bg{position:absolute;inset:0;background:url(assets/bg.webp) center/cover no-repeat;opacity:.35;filter:saturate(1.1)}
+header.hero .fade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,32,.2) 0%,rgba(11,16,32,.85) 70%,var(--bg) 100%)}
+header.hero .wrap{position:relative;padding:80px 20px}
+.brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:20px;letter-spacing:.2px}
+.brand img{width:36px;height:36px;border-radius:9px}
+h1{font-size:clamp(38px,7vw,72px);line-height:1.02;margin:28px 0 12px;letter-spacing:-.02em}
+h1 span{color:var(--acc2)}
+.lead{font-size:clamp(17px,2.2vw,22px);color:var(--mut);max-width:720px;margin:0 0 30px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:12px;font-weight:700;text-decoration:none;border:1px solid var(--line);color:var(--fg);background:var(--card);transition:.15s}
+.btn:hover{transform:translateY(-1px);border-color:var(--acc)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-size:18px;padding:16px 26px}
+.btn.primary:hover{background:#4a7bf0}
+.btn small{display:block;font-weight:400;font-size:12px;opacity:.8}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#1c2748;color:var(--acc2);font-size:12px;font-weight:600;margin-right:6px}
+.badges{margin-top:18px;color:var(--mut);font-size:14px}
+section{padding:64px 0}
+h2{font-size:clamp(26px,3.5vw,36px);margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--mut);margin:0 0 28px;max-width:760px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.card h3{margin:0 0 6px;font-size:17px}.card p{margin:0;color:var(--mut);font-size:14px}
+.card .k{display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--bad);background:#2a1a22;padding:2px 7px;border-radius:6px;margin-bottom:8px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;counter-reset:s}
+.step{position:relative;padding:22px 18px 18px 18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
+.step::before{counter-increment:s;content:counter(s);position:absolute;top:-14px;left:16px;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;font-weight:800;display:grid;place-items:center;font-size:14px}
+.shots{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start}
+.shots img{width:100%;border-radius:var(--r);border:1px solid var(--line);background:#000}
+@media(max-width:800px){.shots{grid-template-columns:1fr}}
+.verdict{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:#0e1426;border:1px solid var(--line);border-radius:var(--r);padding:16px;overflow:auto;white-space:pre;color:#cdd6ea}
+.verdict b{color:var(--warn)}.verdict i{color:var(--bad);font-style:normal}.verdict u{color:var(--ok);text-decoration:none}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td,th{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600;font-size:13px}
+td a.dl{font-weight:700}
+.note{background:#132238;border:1px solid #1f3a5f;border-radius:var(--r);padding:16px 18px;color:#cfe1ff}
+.faq details{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:10px}
+.faq summary{cursor:pointer;font-weight:700}.faq p{color:var(--mut);margin:10px 0 0}
+footer{padding:40px 0 60px;color:var(--mut);font-size:14px;border-top:1px solid var(--line)}
+.lang{position:absolute;top:18px;right:20px;display:flex;gap:6px}
+.lang button{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:5px 10px;cursor:pointer;font-weight:600}
+.lang button.on{color:var(--fg);border-color:var(--acc)}
+[data-tr]{display:none}html[lang="tr"] [data-en]{display:none}html[lang="tr"] [data-tr]{display:revert}
+html[lang="tr"] span[data-tr],html[lang="tr"] a[data-tr],html[lang="tr"] b[data-tr]{display:inline}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="bg" aria-hidden="true"></div><div class="fade" aria-hidden="true"></div>
+  <div class="lang"><button id="lang-en" class="on" onclick="setLang('en')">EN</button><button id="lang-tr" onclick="setLang('tr')">TR</button></div>
+  <div class="wrap">
+    <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.2.0</span></div>
+    <h1 data-en>See what your network <span>blocks</span>.</h1>
+    <h1 data-tr>Ağının neyi <span>engellediğini</span> gör.</h1>
+    <p class="lead" data-en>One click. filterscope measures the filtering on the network you are on — DNS tampering, TLS server-name inspection, HTTPS interception, blocked ports and protocols — using only <b>your own traffic</b> and a <b>clean list of well-known sites</b>. Then it tells you, in plain language, what is going on and what to do.</p>
+    <p class="lead" data-tr>Tek tık. filterscope bağlı olduğun ağdaki filtrelemeyi ölçer — DNS kurcalama, TLS sunucu-adı denetimi (SNI-DPI), HTTPS'in kırılması, kapalı port ve protokoller — yalnızca <b>kendi trafiğinle</b> ve <b>temiz, tanınmış site listesiyle</b>. Sonra ne olduğunu ve ne yapabileceğini düz cümlelerle söyler.</p>
+    <div class="cta">
+      <a class="btn primary" id="cta" href="https://github.com/tunnelmoth/filterscope/releases/latest">
+        <span id="cta-text" data-en>Download</span><span data-tr>İndir</span>
+      </a>
+      <a class="btn" href="#downloads"><span data-en>All platforms</span><span data-tr>Tüm platformlar</span></a>
+      <a class="btn" href="https://github.com/tunnelmoth/filterscope"><span data-en>Source (GitHub)</span><span data-tr>Kaynak kod (GitHub)</span></a>
+    </div>
+    <div class="badges">Windows · Android · Linux · macOS &nbsp;·&nbsp; GPL-3.0 &nbsp;·&nbsp; <span data-en>no account, no telemetry, nothing leaves your device except the test traffic itself</span><span data-tr>hesap yok, telemetri yok; cihazından yalnızca test trafiğinin kendisi çıkar</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="verdict">
+  <h2 data-en>A verdict, not a wall of numbers</h2><h2 data-tr>Sayı yığını değil, hüküm</h2>
+  <p class="sub" data-en>Every scan ends with a score from 0 to 100, the techniques the network uses, a vendor guess when a filter appliance leaves its signature, and the exact sites and protocols affected — re-checked once so a flaky connection does not become a false accusation.</p>
+  <p class="sub" data-tr>Her tarama 0-100 arası bir skor, ağın kullandığı teknikler, filtre cihazı imza bırakıyorsa üretici tahmini ve etkilenen site/protokollerle biter — bağlantı dalgalanması yanlış suçlamaya dönüşmesin diye her bulgu bir kez daha doğrulanır.</p>
+  <div class="verdict">  <b>17/100</b>  █████░░░░░░░░░░░░░░░░░░░░░░░░░   <b>LIGHT</b>   confidence high
+
+  school shows light filtering (score 17/100). 4 of 58 sites are affected,
+  mostly chat (1/1), vpn-info (1/1), vpn-api (2/5). Techniques: TLS
+  server-name inspection, HTTP block page. The filter is application-layer
+  only; SNI-hiding tunnels and ECH get through.
+
+  techniques: <i>SNI-DPI</i> (TLS server-name inspection) · <i>block-page</i> (HTTP block page)
+  <u>ⓘ reachable via ECH (SNI-DPI bypassed):</u> nordvpn.com</div>
+</section>
+
+<section id="what">
+  <h2 data-en>What it measures</h2><h2 data-tr>Ne ölçer</h2>
+  <p class="sub" data-en>Sixteen probes, all against public, well-known endpoints. Nothing inappropriate is ever requested — that is a deliberate design choice, so you can run it anywhere without a second thought.</p>
+  <p class="sub" data-tr>On altı ölçüm, hepsi herkese açık, tanınmış uç noktalara. Uygunsuz hiçbir şey istenmez — bilinçli bir tasarım kararı; her yerde gönül rahatlığıyla çalıştırabilirsin.</p>
+  <div class="grid">
+    <div class="card"><span class="k">SNI-DPI</span><h3 data-en>TLS server-name inspection</h3><h3 data-tr>TLS sunucu-adı denetimi</h3><p data-en>Same IP, real name vs. harmless name. Reset only with the real name = the network reads your ClientHello. It even tells whether the reset was injected by a middlebox (faster than a round trip).</p><p data-tr>Aynı IP, gerçek ad ile zararsız ad. Sadece gerçek adda kopuyorsa ağ ClientHello'nu okuyor demektir. Kopuşun yol üstündeki bir cihazdan enjekte edilip edilmediğini bile söyler (gidiş-dönüşten hızlı).</p></div>
+    <div class="card"><span class="k">TLS-MITM</span><h3 data-en>HTTPS interception</h3><h3 data-tr>HTTPS'in kırılması</h3><p data-en>Verified chains for four big sites. A private issuer means the network decrypts HTTPS with its own certificate — every login readable by the operator.</p><p data-tr>Dört büyük site için doğrulanmış sertifika zinciri. Özel bir imzalayıcı çıkarsa ağ HTTPS'i kendi sertifikasıyla çözüyor — her giriş işletmeci tarafından okunabilir.</p></div>
+    <div class="card"><span class="k">DNS</span><h3 data-en>DNS tampering &amp; interception</h3><h3 data-tr>DNS kurcalama ve müdahale</h3><p data-en>Hijack to a block page, withheld answers, transparent port-53 proxies (a query to an address that cannot answer… answers), NXDOMAIN hijacking, and whether DoH/DoT themselves are blocked.</p><p data-tr>Engel sayfasına yönlendirme, yutulan cevaplar, port-53'e transparan müdahale (cevap veremeyecek bir adrese sorgu… cevap veriyor), NXDOMAIN kaçırma ve DoH/DoT'un kendisinin engellenip engellenmediği.</p></div>
+    <div class="card"><span class="k">PORTS · UDP · QUIC</span><h3 data-en>Outbound reachability</h3><h3 data-tr>Dışa erişim</h3><p data-en>TCP ports used by VPNs and SSH, UDP egress via STUN, and a QUIC version-negotiation probe for HTTP/3 — timeouts mean dropped packets, refusals mean the packet got out.</p><p data-tr>VPN ve SSH'nin kullandığı TCP portları, STUN ile UDP çıkışı ve HTTP/3 için QUIC sürüm-pazarlığı sondası — zaman aşımı düşürülen paket, red ise paketin çıkabildiği anlamına gelir.</p></div>
+    <div class="card"><span class="k">BLOCKPAGE · PROXY</span><h3 data-en>Block pages &amp; appliances</h3><h3 data-tr>Engel sayfaları ve cihazlar</h3><p data-en>Signatures of FortiGate, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, Netsweeper, Palo Alto, Zscaler, BTK/5651 and more; transparent-proxy headers; URL keyword filters tested with benign words.</p><p data-tr>FortiGate, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, Netsweeper, Palo Alto, Zscaler, BTK/5651 ve daha fazlasının imzaları; transparan proxy başlıkları; zararsız kelimelerle test edilen URL anahtar-kelime filtreleri.</p></div>
+    <div class="card"><span class="k">VPN · TOR · ECH</span><h3 data-en>Can I get around it?</h3><h3 data-tr>Aşabilir miyim?</h3><p data-en>Whether VPN sites and APIs are reachable (why your app fails at login), a real Tor bootstrap, and whether a blocked site publishes ECH — in which case the block is bypassable with a modern browser.</p><p data-tr>VPN siteleri ve API'leri erişilebilir mi (uygulaman neden girişte takılıyor), gerçek bir Tor bootstrap'i ve engelli sitenin ECH yayınlayıp yayınlamadığı — yayınlıyorsa engel modern bir tarayıcıyla aşılabilir.</p></div>
+  </div>
+</section>
+
+<section id="how">
+  <h2 data-en>How it works</h2><h2 data-tr>Nasıl çalışır</h2>
+  <div class="steps">
+    <div class="step"><h3 data-en>Scan</h3><h3 data-tr>Tara</h3><p data-en>Press the button. 58 well-known sites and a dozen protocol probes run in parallel; a full scan takes about 30 seconds.</p><p data-tr>Düğmeye bas. 58 tanınmış site ve bir düzine protokol sondası paralel koşar; tam tarama yaklaşık 30 saniye.</p></div>
+    <div class="step"><h3 data-en>Read the verdict</h3><h3 data-tr>Hükmü oku</h3><p data-en>Score, level, techniques, vendor signature, affected categories, and what it means for your VPN and your browser.</p><p data-tr>Skor, seviye, teknikler, üretici imzası, etkilenen kategoriler ve VPN'in ile tarayıcın için ne anlama geldiği.</p></div>
+    <div class="step"><h3 data-en>Keep the evidence</h3><h3 data-tr>Kanıtı sakla</h3><p data-en>A self-contained HTML report, JSON for the record, an anonymized version to share, and a history that shows when a block was added or lifted. Scan again on mobile data and diff the two.</p><p data-tr>Kendi başına açılan HTML rapor, kayıt için JSON, paylaşmak için anonim sürüm ve engelin ne zaman eklenip kaldırıldığını gösteren geçmiş. Mobil veride tekrar tara, ikisini karşılaştır.</p></div>
+  </div>
+</section>
+
+<section id="shots">
+  <h2 data-en>Desktop, terminal, phone</h2><h2 data-tr>Masaüstü, terminal, telefon</h2>
+  <p class="sub" data-en>The same engine everywhere. A windowed app for people who never want to see a terminal, a live terminal dashboard for people who live in one, and an Android app for the network you are actually standing in.</p>
+  <p class="sub" data-tr>Her yerde aynı motor. Terminal görmek istemeyenler için pencereli uygulama, terminalde yaşayanlar için canlı pano ve gerçekten içinde durduğun ağ için Android uygulaması.</p>
+  <div class="shots">
+    <div><img src="assets/gui-overview.webp" alt="filterscope desktop window: score gauge, verdict, findings and advice" loading="lazy"><br><br><img src="assets/gui-sites.webp" alt="filterscope desktop window: sites tab with per-site DNS / TLS-SNI / block page verdicts" loading="lazy"></div>
+    <div><img src="assets/android.webp" alt="filterscope Android app showing a scan result" loading="lazy"></div>
+  </div>
+</section>
+
+<section id="downloads">
+  <h2 data-en>Downloads</h2><h2 data-tr>İndir</h2>
+  <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.2.0</b> · <a id="sums" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
+  <table id="dl">
+    <thead><tr><th data-en>Platform</th><th data-tr>Platform</th><th data-en>File</th><th data-tr>Dosya</th><th data-en>Notes</th><th data-tr>Not</th></tr></thead>
+    <tbody>
+      <tr><td>Windows</td><td><a class="dl" data-asset="filterscope-setup-" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-setup-&lt;version&gt;.exe</a></td><td data-en>Installer. Start-menu shortcut, no admin needed. SmartScreen will warn (unsigned) — “More info → Run anyway”.</td><td data-tr>Kurulum. Başlat menüsü kısayolu, yönetici gerekmez. SmartScreen uyarır (imzasız) — “Daha fazla bilgi → Yine de çalıştır”.</td></tr>
+      <tr><td>Windows <span class="mono">portable</span></td><td><a class="dl" data-asset="filterscope-gui-windows-x86_64.exe" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-windows-x86_64.exe">filterscope-gui-windows-x86_64.exe</a></td><td data-en>Single file, double-click. Terminal build: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-windows-x86_64.exe">filterscope-windows-x86_64.exe</a></td><td data-tr>Tek dosya, çift tık. Terminal sürümü: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-windows-x86_64.exe">filterscope-windows-x86_64.exe</a></td></tr>
+      <tr><td>Android</td><td><a class="dl" data-asset="filterscope-android-" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-android-&lt;version&gt;.apk</a></td><td data-en>Android 7+, 64-bit. Sideload: allow “unknown sources” for your browser once.</td><td data-tr>Android 7+, 64-bit. Elle kurulum: tarayıcın için “bilinmeyen kaynaklar”a bir kez izin ver.</td></tr>
+      <tr><td>Linux</td><td><a class="dl" data-asset="filterscope-gui-linux-x86_64" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-linux-x86_64">filterscope-gui-linux-x86_64</a></td><td data-en><span class="mono">chmod +x</span> then run. Terminal build: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-linux-x86_64">filterscope-linux-x86_64</a></td><td data-tr><span class="mono">chmod +x</span> sonra çalıştır. Terminal sürümü: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-linux-x86_64">filterscope-linux-x86_64</a></td></tr>
+      <tr><td>macOS (Apple silicon)</td><td><a class="dl" data-asset="filterscope-gui-macos-arm64.app.zip" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-macos-arm64.app.zip">filterscope-gui-macos-arm64.app.zip</a></td><td data-en>Unzip, right-click → Open the first time (unsigned). Intel Macs: Python install below.</td><td data-tr>Aç, ilk seferde sağ tık → Aç (imzasız). Intel Mac: aşağıdaki Python kurulumu.</td></tr>
+      <tr><td>Python 3.10+</td><td class="mono">pipx install git+https://github.com/tunnelmoth/filterscope</td><td data-en>Any OS. <span class="mono">filterscope</span> (TUI), <span class="mono">filterscope gui</span>, <span class="mono">filterscope scan --html report.html</span></td><td data-tr>Her OS. <span class="mono">filterscope</span> (TUI), <span class="mono">filterscope gui</span>, <span class="mono">filterscope scan --html rapor.html</span></td></tr>
+    </tbody>
+  </table>
+  <p class="note" style="margin-top:16px" data-en><b>Verify what you download.</b> Compare the file's SHA-256 with <span class="mono">SHA256SUMS.txt</span> from the same release. The binaries are unsigned; the release page and its checksums are the source of truth.</p>
+  <p class="note" style="margin-top:16px" data-tr><b>İndirdiğini doğrula.</b> Dosyanın SHA-256'sını aynı sürümdeki <span class="mono">SHA256SUMS.txt</span> ile karşılaştır. İkili dosyalar imzasız; gerçek kaynak release sayfası ve sağlama toplamlarıdır.</p>
+</section>
+
+<section id="faq" class="faq">
+  <h2 data-en>Questions</h2><h2 data-tr>Sorular</h2>
+  <details><summary data-en>Is it safe to run at school or work?</summary><summary data-tr>Okulda / işte çalıştırmak güvenli mi?</summary><p data-en>It only connects to well-known public sites (Wikipedia, BBC, GitHub, Signal, Khan Academy, WHO…) and public test endpoints, the way a browser would. It never requests inappropriate content and never tries to break anything — it observes. Whether you are allowed to run software on a given network is a question for that network's rules, not for us.</p><p data-tr>Yalnızca tanınmış herkese açık sitelere (Wikipedia, BBC, GitHub, Signal, Khan Academy, WHO…) ve herkese açık test uç noktalarına, bir tarayıcı gibi bağlanır. Asla uygunsuz içerik istemez, hiçbir şeyi kırmaya çalışmaz — gözlemler. Bir ağda yazılım çalıştırmaya izinli olup olmadığın o ağın kurallarına bağlıdır.</p></details>
+  <details><summary data-en>Does it bypass the filter?</summary><summary data-tr>Filtreyi aşıyor mu?</summary><p data-en>No. It measures and explains. The advice section tells you which kinds of tunnel would or would not work on this network, and the Linux build can drive Cloudflare WARP — but filterscope itself changes nothing on your device or the network.</p><p data-tr>Hayır. Ölçer ve açıklar. Tavsiye bölümü bu ağda hangi tür tünelin çalışıp çalışmayacağını söyler, Linux sürümü Cloudflare WARP'ı sürebilir — ama filterscope'un kendisi cihazında veya ağda hiçbir şeyi değiştirmez.</p></details>
+  <details><summary data-en>What leaves my device?</summary><summary data-tr>Cihazımdan ne çıkıyor?</summary><p data-en>Only the test traffic itself: DNS queries, TLS handshakes and small HTTP requests to the sites in the list, plus one request to 1.1.1.1 to learn your public country and Cloudflare colo. No account, no telemetry, no reporting server. Reports stay in a folder on your device until you share them.</p><p data-tr>Yalnızca test trafiğinin kendisi: listedeki sitelere DNS sorguları, TLS el sıkışmaları ve küçük HTTP istekleri, artı ülke ve Cloudflare noktanı öğrenmek için 1.1.1.1'e tek istek. Hesap yok, telemetri yok, rapor sunucusu yok. Raporlar sen paylaşana kadar cihazındaki bir klasörde durur.</p></details>
+  <details><summary data-en>Why is the Windows build flagged by SmartScreen?</summary><summary data-tr>Windows sürümünü SmartScreen neden işaretliyor?</summary><p data-en>Because it is not code-signed with a paid certificate. Verify the SHA-256 against the release's checksum file, then “More info → Run anyway”. The full source is on GitHub and the binaries are built by GitHub's own CI from that source.</p><p data-tr>Ücretli bir sertifikayla kod-imzalı olmadığı için. SHA-256'yı sürümün sağlama dosyasıyla doğrula, sonra “Daha fazla bilgi → Yine de çalıştır”. Kaynağın tamamı GitHub'da; ikili dosyaları GitHub'ın kendi CI'ı o kaynaktan derler.</p></details>
+  <details><summary data-en>How is the score computed?</summary><summary data-tr>Skor nasıl hesaplanıyor?</summary><p data-en>Share of affected sites (up to 50 points, damped for small scans) + a weight per technique (TLS interception weighs most) + 2 per blocked port, capped at 100. 0 clean · 1-19 light · 20-44 moderate · 45-69 heavy · 70+ severe. Every positive site result is re-tested once; results that do not reproduce are dropped.</p><p data-tr>Etkilenen site oranı (en fazla 50 puan, küçük taramalarda sönümlü) + teknik başına ağırlık (HTTPS kırma en ağırı) + engelli port başına 2, üst sınır 100. 0 temiz · 1-19 hafif · 20-44 orta · 45-69 ağır · 70+ şiddetli. Pozitif her site sonucu bir kez daha test edilir; tekrar etmeyenler düşer.</p></details>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  <div><b>filterscope</b> — <span data-en>free software, GPL-3.0-or-later.</span><span data-tr>özgür yazılım, GPL-3.0-or-later.</span> <a href="https://github.com/tunnelmoth/filterscope">github.com/tunnelmoth/filterscope</a> · <a href="https://github.com/tunnelmoth/filterscope/issues">issues</a> · <a href="https://github.com/tunnelmoth/filterscope/blob/main/CHANGELOG.md">changelog</a></div>
+  <div style="margin-top:8px" data-en>Measure with your own traffic, on your own device. Built in the spirit of EFF and Tor: transparency about what networks do to the people using them.</div>
+  <div style="margin-top:8px" data-tr>Kendi trafiğinle, kendi cihazında ölç. EFF ve Tor ruhuyla: ağların, kullananlarına ne yaptığı konusunda şeffaflık.</div>
+</div></footer>
+
+<script>
+(function(){
+  var REPO="tunnelmoth/filterscope", base="https://github.com/"+REPO+"/releases/latest/download/";
+  function setLang(l){document.documentElement.lang=l;document.getElementById('lang-en').classList.toggle('on',l==='en');document.getElementById('lang-tr').classList.toggle('on',l==='tr');try{localStorage.setItem('fs-lang',l)}catch(e){}}
+  window.setLang=setLang;
+  try{var s=localStorage.getItem('fs-lang');if(s)setLang(s);else if((navigator.language||'').toLowerCase().startsWith('tr'))setLang('tr');}catch(e){}
+  // pick the right primary download for this device
+  var ua=navigator.userAgent, plat=navigator.platform||"", cta=document.getElementById('cta'), t=document.getElementById('cta-text');
+  var pick=null, label=null;
+  if(/Android/i.test(ua)){pick="android";label="Download for Android (.apk)";}
+  else if(/Windows/i.test(ua)){pick="setup";label="Download for Windows";}
+  else if(/Mac/i.test(plat)&&!/iPhone|iPad/.test(ua)){pick="filterscope-gui-macos-arm64.app.zip";label="Download for macOS";}
+  else if(/Linux/i.test(plat)){pick="filterscope-gui-linux-x86_64";label="Download for Linux";}
+  if(pick&&pick.indexOf("filterscope-")===0){cta.href=base+pick;t.textContent=label;}
+  else if(label){t.textContent=label;}
+  // fill versioned asset names (setup exe, apk) from the latest release
+  fetch("https://api.github.com/repos/"+REPO+"/releases/latest").then(function(r){return r.json()}).then(function(rel){
+    if(!rel||!rel.assets)return;
+    var v=rel.tag_name||"";document.getElementById('ver').textContent=v;document.getElementById('ver2').textContent=v;
+    rel.assets.forEach(function(a){
+      document.querySelectorAll('a[data-asset]').forEach(function(el){
+        var p=el.getAttribute('data-asset');
+        if(a.name===p||(p.slice(-1)==='-'&&a.name.indexOf(p)===0)){el.href=a.browser_download_url;el.textContent=a.name;}
+      });
+      if(pick==="setup"&&a.name.indexOf("filterscope-setup-")===0)cta.href=a.browser_download_url;
+      if(pick==="android"&&a.name.indexOf("filterscope-android-")===0)cta.href=a.browser_download_url;
+    });
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>

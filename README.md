@@ -161,6 +161,7 @@ pip install -e ".[dev]"
 pytest                                  # offline unit tests
 pyinstaller packaging/filterscope.spec  # single-file binary → dist/
 cd android && ./gradlew assembleDebug   # Android APK (JDK 17, Android SDK 34, python3.13 on PATH)
+# landing page: docs/index.html (GitHub Pages: Settings → Pages → main /docs)
 ```
 
 CI runs the tests on Linux, Windows and macOS; a `v*` tag builds and publishes the binaries.

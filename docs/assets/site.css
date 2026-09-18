@@ -5,13 +5,11 @@ body{margin:0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-seri
 a{color:var(--acc2)}
 .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
 header.hero{position:relative;min-height:88vh;display:flex;align-items:center;overflow:hidden;background:var(--bg)}
-header.hero .bg{position:absolute;top:0;bottom:0;left:42%;right:0;background:url(bg.webp) right center/contain no-repeat}
-header.hero .fade{position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 38%,rgba(23,35,47,0) 60%)}
-header.hero .wrap{position:relative;padding:80px 20px;width:100%}
-header.hero .txt{max-width:760px}
+header.hero .wrap{position:relative;padding:80px 20px;width:100%;display:flex;align-items:center;gap:48px}
+header.hero .art{flex:0 1 520px;max-width:520px;width:100%;height:auto}
+header.hero .txt{flex:1 1 560px;max-width:760px;min-width:0}
 header.hero .txt h1,header.hero .txt .lead{max-width:600px}
-@media(max-width:900px){header.hero .bg{left:0;top:0;bottom:auto;height:46vh;background-position:center top;background-size:cover;opacity:.55}
-  header.hero .fade{background:linear-gradient(180deg,rgba(23,35,47,0) 0%,rgba(23,35,47,.6) 34vh,var(--bg) 46vh)}header.hero .wrap{padding-top:44vh}}
+@media(max-width:900px){header.hero .wrap{flex-direction:column-reverse;gap:24px;padding-top:56px}header.hero .art{flex:none;width:min(100%,360px);height:auto}}
 .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:20px;letter-spacing:.2px}
 .brand img{width:36px;height:36px;border-radius:9px}
 h1{font-size:clamp(38px,7vw,72px);line-height:1.02;margin:28px 0 12px;letter-spacing:-.02em}

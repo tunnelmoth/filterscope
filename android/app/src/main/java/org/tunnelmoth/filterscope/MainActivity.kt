@@ -214,7 +214,7 @@ fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit, onCard: (Bo
                 }
             }
 
-            TabRow(selectedTabIndex = tab) {
+            androidx.compose.material3.ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                 listOf(S.tabOverview, S.tabSites, S.tabEgress, S.tabHistory, S.tabCheck).forEachIndexed { i, t ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) })
                 }

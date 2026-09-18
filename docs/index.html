@@ -8,19 +8,22 @@
 <meta property="og:title" content="filterscope — see what your network blocks">
 <meta property="og:description" content="Measure DNS tampering, SNI-DPI, TLS interception, blocked ports and more. One click, evidence you can share.">
 <meta property="og:image" content="assets/gui-overview.webp">
+<meta name="theme-color" content="#17232f">
 <link rel="icon" href="assets/icon.png">
 <style>
-:root{--bg:#0b1020;--fg:#e8ecf5;--mut:#9aa4bd;--acc:#5b8cff;--acc2:#8ab4f8;--ok:#3ddc84;--bad:#ff6b6b;--warn:#ffb74d;--card:#131a2e;--line:#22304f;--r:14px}
+:root{--bg:#17232f;--fg:#eef2f7;--mut:#a3adbd;--acc:#8b5cf6;--acc2:#c4b5fd;--ok:#a3e635;--bad:#ff6b6b;--warn:#ffb74d;--card:#1f2c3b;--line:#2d3c4e;--r:14px}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 html,body{overflow-x:hidden;max-width:100%}
 body{margin:0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
 a{color:var(--acc2)}
 .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
-header.hero{position:relative;min-height:88vh;display:flex;align-items:center;overflow:hidden;
-  background:radial-gradient(1200px 600px at 20% -10%,#1d2b5a 0%,transparent 60%),radial-gradient(900px 500px at 100% 110%,#2a1a4f 0%,transparent 55%),var(--bg)}
-header.hero .bg{position:absolute;inset:0;background:url(assets/bg.webp) center/cover no-repeat;opacity:.35;filter:saturate(1.1)}
-header.hero .fade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,32,.2) 0%,rgba(11,16,32,.85) 70%,var(--bg) 100%)}
-header.hero .wrap{position:relative;padding:80px 20px}
+header.hero{position:relative;min-height:88vh;display:flex;align-items:center;overflow:hidden;background:var(--bg)}
+header.hero .bg{position:absolute;top:0;bottom:0;left:42%;right:0;background:url(assets/bg.webp) right center/contain no-repeat}
+header.hero .fade{position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 38%,rgba(23,35,47,0) 60%)}
+header.hero .wrap{position:relative;padding:80px 20px;width:100%}
+header.hero .txt{max-width:600px}
+@media(max-width:900px){header.hero .bg{left:0;top:0;bottom:auto;height:46vh;background-position:center top;background-size:cover;opacity:.55}
+  header.hero .fade{background:linear-gradient(180deg,rgba(23,35,47,0) 0%,rgba(23,35,47,.6) 34vh,var(--bg) 46vh)}header.hero .wrap{padding-top:44vh}}
 .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:20px;letter-spacing:.2px}
 .brand img{width:36px;height:36px;border-radius:9px}
 h1{font-size:clamp(38px,7vw,72px);line-height:1.02;margin:28px 0 12px;letter-spacing:-.02em}
@@ -30,9 +33,9 @@ h1 span{color:var(--acc2)}
 .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:12px;font-weight:700;text-decoration:none;border:1px solid var(--line);color:var(--fg);background:var(--card);transition:.15s}
 .btn:hover{transform:translateY(-1px);border-color:var(--acc)}
 .btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-size:18px;padding:16px 26px}
-.btn.primary:hover{background:#4a7bf0}
+.btn.primary:hover{background:#7c4ce6}
 .btn small{display:block;font-weight:400;font-size:12px;opacity:.8}
-.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#1c2748;color:var(--acc2);font-size:12px;font-weight:600;margin-right:6px}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2a2447;color:var(--acc2);font-size:12px;font-weight:600;margin-right:6px}
 .badges{margin-top:18px;color:var(--mut);font-size:14px}
 section{padding:64px 0}
 h2{font-size:clamp(26px,3.5vw,36px);margin:0 0 8px;letter-spacing:-.01em}
@@ -40,19 +43,19 @@ h2{font-size:clamp(26px,3.5vw,36px);margin:0 0 8px;letter-spacing:-.01em}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
 .card h3{margin:0 0 6px;font-size:17px}.card p{margin:0;color:var(--mut);font-size:14px}
-.card .k{display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--bad);background:#2a1a22;padding:2px 7px;border-radius:6px;margin-bottom:8px}
+.card .k{display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--ok);background:#1f2f1a;padding:2px 7px;border-radius:6px;margin-bottom:8px}
 .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;counter-reset:s}
 .step{position:relative;padding:22px 18px 18px 18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
-.step::before{counter-increment:s;content:counter(s);position:absolute;top:-14px;left:16px;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;font-weight:800;display:grid;place-items:center;font-size:14px}
+.step::before{counter-increment:s;content:counter(s);position:absolute;top:-14px;left:16px;width:28px;height:28px;border-radius:50%;background:var(--ok);color:#17232f;font-weight:800;display:grid;place-items:center;font-size:14px}
 .shots{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start}
 .shots img{width:100%;border-radius:var(--r);border:1px solid var(--line);background:#000}
 @media(max-width:800px){.shots{grid-template-columns:1fr}}
-.verdict{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:#0e1426;border:1px solid var(--line);border-radius:var(--r);padding:16px;overflow:auto;white-space:pre;color:#cdd6ea}
+.verdict{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:#111a24;border:1px solid var(--line);border-radius:var(--r);padding:16px;overflow:auto;white-space:pre;color:#cdd6ea}
 .verdict b{color:var(--warn)}.verdict i{color:var(--bad);font-style:normal}.verdict u{color:var(--ok);text-decoration:none}
 table{width:100%;border-collapse:collapse;font-size:15px}
 td,th{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600;font-size:13px}
 td a.dl{font-weight:700}
-.note{background:#132238;border:1px solid #1f3a5f;border-radius:var(--r);padding:16px 18px;color:#cfe1ff}
+.note{background:#24203d;border:1px solid #3d3566;border-radius:var(--r);padding:16px 18px;color:#e4ddff}
 .faq details{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:10px}
 .faq summary{cursor:pointer;font-weight:700}.faq p{color:var(--mut);margin:10px 0 0}
 footer{padding:40px 0 60px;color:var(--mut);font-size:14px;border-top:1px solid var(--line)}
@@ -72,7 +75,7 @@ header.hero{min-height:min(88vh,900px)}
 <header class="hero">
   <div class="bg" aria-hidden="true"></div><div class="fade" aria-hidden="true"></div>
   <div class="lang"><button id="lang-en" class="on" onclick="setLang('en')">EN</button><button id="lang-tr" onclick="setLang('tr')">TR</button></div>
-  <div class="wrap">
+  <div class="wrap"><div class="txt">
     <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.2.0</span></div>
     <h1 data-en>See what your network <span>blocks</span>.</h1>
     <h1 data-tr>Ağının neyi <span>engellediğini</span> gör.</h1>
@@ -86,7 +89,7 @@ header.hero{min-height:min(88vh,900px)}
       <a class="btn" href="https://github.com/tunnelmoth/filterscope"><span data-en>Source (GitHub)</span><span data-tr>Kaynak kod (GitHub)</span></a>
     </div>
     <div class="badges">Windows · Android · Linux · macOS &nbsp;·&nbsp; GPL-3.0 &nbsp;·&nbsp; <span data-en>no account, no telemetry, nothing leaves your device except the test traffic itself</span><span data-tr>hesap yok, telemetri yok; cihazından yalnızca test trafiğinin kendisi çıkar</span></div>
-  </div>
+  </div></div>
 </header>
 
 <main class="wrap">

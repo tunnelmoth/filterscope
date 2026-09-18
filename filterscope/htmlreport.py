@@ -5,6 +5,7 @@ import html
 import json
 
 from . import __version__, analysis, core, sysinfo
+from .i18n import level_name, t
 
 CSS = """
 :root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--ok:#1a7f37;--bad:#c62828;--warn:#b26a00;--line:#e3e3e3;--card:#fafafa;--acc:#3452a4}
@@ -63,7 +64,7 @@ def gauge_svg(score: int, lvl: str) -> str:
     fg = arc(start, start + sweep * max(score, 1) / 100, LEVEL_COLOR[lvl], 12) if score else ""
     return (f'<svg class="gauge" viewBox="0 0 150 150">{bg}{fg}'
             f'<text x="75" y="86" text-anchor="middle" font-size="34" font-weight="700" fill="{LEVEL_COLOR[lvl]}">{score}</text>'
-            f'<text x="75" y="106" text-anchor="middle" font-size="12" fill="var(--mut)">{html.escape(lvl.upper())}</text></svg>')
+            f'<text x="75" y="106" text-anchor="middle" font-size="12" fill="var(--mut)">{html.escape(level_name(lvl, up=True))}</text></svg>')
 
 
 def render_html(report: dict) -> str:
@@ -74,7 +75,7 @@ def render_html(report: dict) -> str:
     geo = report.get("geo") or {}
     out = [f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
            f"<title>filterscope report — {e(sysinfo.net_name(fp))}</title><style>{CSS}</style><body>",
-           "<h1>filterscope report</h1>",
+           f"<h1>{e(t('html.title'))}</h1>",
            f'<div class=meta>{e(report["ts"])} · network <b>{e(sysinfo.net_name(fp))}</b> [id {e(fp["id"])}] · '
            f'gw {e(fp.get("gateway") or "?")} · resolver {e(fp.get("resolver") or "?")} · {e(fp.get("os", ""))}'
            + (f' · vantage {e(geo.get("country", ""))}/{e(geo.get("colo", ""))}' if geo.get("country") else "")
@@ -87,30 +88,30 @@ def render_html(report: dict) -> str:
         out.append("<p>" + "".join(f'<span class="badge bad" title="{e(an["technique_labels"][t])}">{e(t)}</span>'
                                    for t in an["techniques"]) + "</p>")
     else:
-        out.append('<p><span class="badge ok">no interference technique detected</span></p>')
-    out.append(f'<p class=dim>confidence: {e(an["confidence"])}'
+        out.append(f'<p><span class="badge ok">{e(t("html.badge_clean"))}</span></p>')
+    out.append(f'<p class=dim>{e(t("html.confidence"))}: {e(t("conf." + an["confidence"]))}'
                + (f' · vendor signature: <b>{e(an["vendor"])}</b>' if an["vendor"] else "")
                + (" · positives re-checked" if report.get("verified") else "") + "</p>")
     out.append("</div></div></div>")
 
     # categories
     if an["categories"]:
-        out.append("<h2>Impact by category</h2><div class=cats>")
+        out.append(f"<h2>{e(t('html.impact'))}</h2><div class=cats>")
         for r in an["categories"]:
             pct = int(100 * r["blocked"] / max(r["total"], 1))
             out.append(f'<div class="cat {"clean" if not r["blocked"] else ""}"><b>{e(r["category"])}</b>'
                        f'<div class=bar><i style="width:{pct}%"></i></div>'
-                       f'<span class=dim>{r["blocked"]}/{r["total"]} blocked</span>'
+                       f'<span class=dim>{e(t("html.blocked_of", b=r["blocked"], t=r["total"]))}</span>'
                        + (f'<div class=dim style="font-size:11px">{e(", ".join(r["domains"][:3]))}</div>' if r["domains"] else "")
                        + "</div>")
         out.append("</div>")
 
     # findings
-    out.append("<h2>Findings</h2><div class=card>")
+    out.append(f"<h2>{e(t('html.findings'))}</h2><div class=card>")
     if fl:
         out.append("<ul>" + "".join(f"<li>{e(x)}</li>" for x in fl) + "</ul>")
     else:
-        out.append("<p class=ok>No clear interference.</p>")
+        out.append(f"<p class=ok>{e(t('html.no_interference'))}</p>")
     transient = [d for d, r in report.get("sites", {}).items() if r.get("transient")]
     if transient:
         out.append(f"<p class=dim>Transient (not reproduced on retry, ignored): {e(', '.join(transient))}</p>")
@@ -120,7 +121,7 @@ def render_html(report: dict) -> str:
     if report.get("sites"):
         rows = sorted(report["sites"].items(),
                       key=lambda kv: (not any(kv[1][k]["verdict"] not in core.NEUTRAL for k in ("dns", "sni", "blockpage")), kv[1]["cat"]))
-        out.append("<h2>Sites — DNS / TLS-SNI / block page / ECH</h2><table><tr><th>category</th><th>domain</th>"
+        out.append(f"<h2>{e(t('html.sites'))}</h2><table><tr><th>category</th><th>domain</th>"
                    "<th>DNS</th><th>TLS/SNI</th><th>block page</th><th>ECH</th><th>ms</th><th>notes</th></tr>")
         for dom, d in rows:
             from .render import site_notes
@@ -148,10 +149,10 @@ def render_html(report: dict) -> str:
         out.append(f"<h2>{e(title)}</h2><div class=card><ul>")
         out.extend(f"<li class={ {'g': 'ok', 'r': 'bad', 'y': 'warn'}.get(c, 'dim') }>{e(t.strip())}</li>" for c, t in items)
         out.append("</ul></div>")
-    advice("VPN diagnosis", core.vpn_advice(report))
-    advice("Tunnel / circumvention", core.tunnel_advice(report))
+    advice(t("ui.vpn_diag"), core.vpn_advice(report))
+    advice(t("ui.tunnel"), core.tunnel_advice(report))
 
-    out.append("<h2>Method</h2><details><summary>how each verdict is reached</summary><div class=card><ul>"
+    out.append(f"<h2>{e(t('html.method'))}</h2><details><summary>how each verdict is reached</summary><div class=card><ul>"
                "<li><b>DNS</b>: DoH is the reference; only private-IP redirection and NXDOMAIN injection are flagged (IP differences are treated as CDN).</li>"
                "<li><b>TLS/SNI</b>: handshake to the real IP with the real SNI vs. a harmless control SNI; reset/timeout only with the real SNI = SNI-based DPI. RST arriving faster than the TCP RTT = injected in-path.</li>"
                "<li><b>TLS interception</b>: a verified handshake against the Mozilla CA bundle for four large public sites; a chain signed by a non-public issuer = SSL inspection.</li>"

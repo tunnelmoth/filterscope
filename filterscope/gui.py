@@ -21,6 +21,7 @@ except ImportError:  # pragma: no cover
     tk = None
 
 from . import __version__, analysis, config, core, scan, sysinfo
+from .i18n import get_lang, level_name, set_lang, t
 from .render import site_flagged, site_notes
 
 LEVEL_COLOR = {"clean": "#1a7f37", "light": "#b26a00", "moderate": "#d97706",
@@ -50,7 +51,7 @@ def open_path(path: str):
 
 
 class App:
-    def __init__(self, root: "tk.Tk", opts: scan.ScanOptions | None = None):
+    def __init__(self, root: "tk.Tk", opts: scan.ScanOptions | None = None, autoscan: bool = False):
         self.root = root
         self.opts = opts or scan.ScanOptions.from_config(config.load())
         self.q: queue.Queue = queue.Queue()
@@ -67,6 +68,9 @@ class App:
         self._build()
         self.root.after(80, self._pump)
         self.root.after(200, self.load_history)
+        self.root.after(1500, self.check_update_async)
+        if autoscan:
+            self.root.after(400, self.start_scan)
 
     # ── layout ──────────────────────────────────────────────────────────────
     def _build(self):
@@ -105,22 +109,29 @@ class App:
         # toolbar
         tb = ttk.Frame(r, padding=(12, 10, 12, 4))
         tb.pack(fill="x")
-        self.btn_scan = ttk.Button(tb, text="▶  Scan", style="Accent.TButton", command=self.start_scan)
+        self.btn_scan = ttk.Button(tb, text="▶  " + t("ui.scan"), style="Accent.TButton", command=self.start_scan)
         self.btn_scan.pack(side="left")
-        self.btn_stop = ttk.Button(tb, text="Stop", command=self.stop_scan, state="disabled")
+        self.btn_stop = ttk.Button(tb, text=t("ui.stop"), command=self.stop_scan, state="disabled")
         self.btn_stop.pack(side="left", padx=(6, 14))
-        ttk.Label(tb, text="label").pack(side="left")
+        ttk.Label(tb, text=t("ui.label")).pack(side="left")
         ttk.Entry(tb, textvariable=self._label, width=14).pack(side="left", padx=(4, 12))
-        ttk.Label(tb, text="profile").pack(side="left")
+        ttk.Label(tb, text=t("ui.profile")).pack(side="left")
         cb = ttk.Combobox(tb, textvariable=self._profile, values=sorted(config.PROFILES), width=8, state="readonly")
         cb.pack(side="left", padx=(4, 12))
-        ttk.Checkbutton(tb, text="Tor test", variable=self._tor).pack(side="left", padx=(0, 8))
-        ttk.Button(tb, text="Sites…", command=self.sites_dialog).pack(side="left", padx=(0, 12))
-        ttk.Button(tb, text="Folder", width=7, command=lambda: open_path(config.DIR if os.path.isdir(config.DIR) else os.getcwd())).pack(side="right")
-        ttk.Button(tb, text="Compare", width=8, command=self.compare_prev).pack(side="right", padx=4)
-        ttk.Button(tb, text="JSON…", width=7, command=self.save_json).pack(side="right", padx=4)
-        ttk.Button(tb, text="HTML…", width=7, command=self.save_html).pack(side="right", padx=4)
-        self.btn_view = ttk.Button(tb, text="Open report", width=13, style="Accent.TButton",
+        ttk.Checkbutton(tb, text=t("ui.tor"), variable=self._tor).pack(side="left", padx=(0, 8))
+        ttk.Button(tb, text=t("ui.sites"), command=self.sites_dialog).pack(side="left", padx=(0, 6))
+        lang_btn = ttk.Button(tb, text="TR" if get_lang() == "en" else "EN", width=3, command=self.toggle_lang)
+        lang_btn.pack(side="left", padx=(0, 12))
+        ttk.Button(tb, text=t("ui.folder"), width=7, command=lambda: open_path(config.DIR if os.path.isdir(config.DIR) else os.getcwd())).pack(side="right")
+        ttk.Button(tb, text=t("ui.compare"), width=10, command=self.compare_prev).pack(side="right", padx=4)
+        mb = ttk.Menubutton(tb, text=t("ui.save") + " ▾", width=10)
+        menu = tk.Menu(mb, tearoff=False)
+        menu.add_command(label=t("ui.html"), command=self.save_html)
+        menu.add_command(label=t("ui.json"), command=self.save_json)
+        menu.add_command(label=t("ui.card"), command=self.save_card)
+        mb["menu"] = menu
+        mb.pack(side="right", padx=4)
+        self.btn_view = ttk.Button(tb, text=t("ui.report"), width=13, style="Accent.TButton",
                                    command=self.view_report, state="disabled")
         self.btn_view.pack(side="right", padx=(12, 4))
 
@@ -129,6 +140,8 @@ class App:
         self.progress = ttk.Progressbar(pb, mode="determinate", maximum=100)
         self.progress.pack(fill="x", side="left", expand=True)
         ttk.Label(pb, textvariable=self._status, foreground=MUTED, width=42, anchor="e").pack(side="right", padx=(10, 0))
+        self.update_lbl = tk.Label(r, text="", fg="#ffffff", bg=ACCENT, cursor="hand2", font=("TkDefaultFont", 10, "bold"))
+        self.update_lbl.bind("<Button-1>", lambda e: webbrowser.open(getattr(self, "_update_url", core.RELEASES_URL)))
 
         # header card: gauge + summary
         hc = ttk.Frame(r, style="Card.TFrame", padding=12)
@@ -137,13 +150,11 @@ class App:
         self.gauge.pack(side="left")
         right = ttk.Frame(hc, style="Card.TFrame")
         right.pack(side="left", fill="both", expand=True, padx=(14, 0))
-        self.net_lbl = ttk.Label(right, text="network: —", style="Muted.TLabel")
+        self.net_lbl = ttk.Label(right, text=t("ui.network") + ": —", style="Muted.TLabel")
         self.net_lbl.pack(anchor="w")
-        self.level_lbl = ttk.Label(right, text="press Scan", style="H.TLabel")
+        self.level_lbl = ttk.Label(right, text=t("ui.press_scan"), style="H.TLabel")
         self.level_lbl.pack(anchor="w", pady=(2, 2))
-        self.summary_lbl = ttk.Label(right, text="Measures the filtering behaviour of this network with your own "
-                                                 "traffic and a clean allowlist of well-known sites.",
-                                     style="Card.TLabel", wraplength=800, justify="left")
+        self.summary_lbl = ttk.Label(right, text=t("ui.intro"), style="Card.TLabel", wraplength=800, justify="left")
         self.summary_lbl.pack(anchor="w")
         self.tech_lbl = ttk.Label(right, text="", style="Card.TLabel", foreground=RED_FG, wraplength=800, justify="left")
         self.tech_lbl.pack(anchor="w", pady=(4, 0))
@@ -162,13 +173,13 @@ class App:
 
     def _build_overview(self):
         f = ttk.Frame(self.nb, padding=8)
-        self.nb.add(f, text="Overview")
-        left = ttk.Labelframe(f, text="findings", padding=6)
+        self.nb.add(f, text=t("ui.tab.overview"))
+        left = ttk.Labelframe(f, text=t("ui.findings"), padding=6)
         left.pack(side="left", fill="both", expand=True, padx=(0, 6))
         self.findings = tk.Listbox(left, bg=CARD, fg=FG, highlightthickness=0, borderwidth=0,
                                    selectbackground="#dbe4ff", selectforeground=FG, activestyle="none")
         self.findings.pack(fill="both", expand=True)
-        right = ttk.Labelframe(f, text="diagnosis & advice", padding=6)
+        right = ttk.Labelframe(f, text=t("ui.advice"), padding=6)
         right.pack(side="left", fill="both", expand=True)
         self.advice = tk.Text(right, bg=CARD, fg=FG, wrap="word", borderwidth=0, highlightthickness=0,
                               padx=6, pady=4, state="disabled", font="TkDefaultFont")
@@ -179,14 +190,14 @@ class App:
 
     def _build_sites(self):
         f = ttk.Frame(self.nb, padding=8)
-        self.nb.add(f, text="Sites")
+        self.nb.add(f, text=t("ui.tab.sites"))
         bar = ttk.Frame(f)
         bar.pack(fill="x", pady=(0, 6))
-        ttk.Label(bar, text="filter").pack(side="left")
+        ttk.Label(bar, text=t("ui.filter")).pack(side="left")
         e = ttk.Entry(bar, textvariable=self._filter, width=30)
         e.pack(side="left", padx=(4, 12))
         e.bind("<KeyRelease>", lambda ev: self.rebuild_sites())
-        ttk.Checkbutton(bar, text="affected only", variable=self._flagged_only, command=self.rebuild_sites).pack(side="left")
+        ttk.Checkbutton(bar, text=t("ui.affected_only"), variable=self._flagged_only, command=self.rebuild_sites).pack(side="left")
         self.site_count = ttk.Label(bar, text="", foreground=MUTED)
         self.site_count.pack(side="right")
         self.detail = tk.Text(f, height=5, bg=CARD, fg=FG, wrap="word", borderwidth=1, relief="solid",
@@ -213,7 +224,7 @@ class App:
 
     def _build_egress(self):
         f = ttk.Frame(self.nb, padding=8)
-        self.nb.add(f, text="Egress & DNS")
+        self.nb.add(f, text=t("ui.tab.egress"))
         cols = ("probe", "status", "detail")
         self.egress = ttk.Treeview(f, columns=cols, show="headings")
         for c, w in zip(cols, (240, 160, 600)):
@@ -229,7 +240,7 @@ class App:
 
     def _build_history(self):
         f = ttk.Frame(self.nb, padding=8)
-        self.nb.add(f, text="History")
+        self.nb.add(f, text=t("ui.tab.history"))
         cols = ("time", "network", "score", "blocks", "changes")
         self.hist = ttk.Treeview(f, columns=cols, show="headings")
         for c, w in zip(cols, (150, 140, 60, 60, 600)):
@@ -243,11 +254,11 @@ class App:
         sb.pack(side="left", fill="y")
         bb = ttk.Frame(f)
         bb.pack(side="bottom", fill="x", pady=(6, 0))
-        ttk.Button(bb, text="Export timeline HTML…", command=self.export_history).pack(side="left")
+        ttk.Button(bb, text=t("ui.export_timeline"), command=self.export_history).pack(side="left")
 
     def _build_about(self):
         f = ttk.Frame(self.nb, padding=16)
-        self.nb.add(f, text="About")
+        self.nb.add(f, text=t("ui.tab.about"))
         txt = (f"filterscope {__version__} — GPL-3.0 — github.com/tunnelmoth/filterscope\n\n"
                "Measures filtering / censorship on the network you are connected to, legitimately: "
                "only your own traffic, only a clean allowlist of well-known sites.\n\n"
@@ -266,10 +277,10 @@ class App:
                "(filterscope compare A.json B.json) — anything blocked only here is filtering specific to this network.\n\n"
                f"Data folder: {config.DIR}\n"
                "The Tor test needs a tor / tor.exe binary (Tor Expert Bundle) on PATH or next to this program.")
-        t = tk.Text(f, bg=BG, fg=FG, wrap="word", borderwidth=0, highlightthickness=0, font="TkDefaultFont")
-        t.insert("1.0", txt)
-        t.configure(state="disabled")
-        t.pack(fill="both", expand=True)
+        w = tk.Text(f, bg=BG, fg=FG, wrap="word", borderwidth=0, highlightthickness=0, font="TkDefaultFont")
+        w.insert("1.0", txt)
+        w.configure(state="disabled")
+        w.pack(fill="both", expand=True)
 
     # ── gauge ────────────────────────────────────────────────────────────────
     def draw_gauge(self, score: int, level: str, blank=False):
@@ -359,12 +370,12 @@ class App:
         self.egress.delete(*self.egress.get_children())
         self.sites.delete(*self.sites.get_children())
         self._set_text(self.advice, [])
-        self.level_lbl.configure(text="scanning…", foreground=FG)
+        self.level_lbl.configure(text=t("ui.scanning"), foreground=FG)
         self.summary_lbl.configure(text="")
         self.tech_lbl.configure(text="")
         self.draw_gauge(0, "clean", blank=True)
         self.progress.configure(value=0)
-        self._status.set("starting…")
+        self._status.set(t("ui.scanning"))
         self.sites_expected = core.select_sites(self.opts.categories, self.opts.domains)
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -392,12 +403,12 @@ class App:
     def _handle(self, ev, a):
         if ev == "net":
             fp = a[0]
-            self.net_lbl.configure(text=f"network: {sysinfo.net_name(fp)}   [id {fp['id']}]   gw {fp.get('gateway') or '?'}   "
+            self.net_lbl.configure(text=f"{t('ui.network')}: {sysinfo.net_name(fp)}   [id {fp['id']}]   gw {fp.get('gateway') or '?'}   "
                                         f"resolver {fp.get('resolver') or '?'}   {fp.get('os', '')}")
         elif ev == "progress":
             done, total = a
             self.progress.configure(maximum=max(total, 1), value=done)
-            self._status.set(f"probing {done}/{total}")
+            self._status.set(t("ui.probing", done=done, total=total))
         elif ev == "site":
             dom, res = a
             self.live_sites[dom] = res
@@ -413,7 +424,7 @@ class App:
             if not ok:
                 self._finding(f"↺ {dom}: not reproduced on retry — dropped", warn=True)
         elif ev == "verify_start":
-            self._status.set(f"re-checking {a[0]} positives…")
+            self._status.set(t("ui.recheck", n=a[0]))
         elif ev == "port":
             self._egress_row(a[0], a[1], "")
         elif ev in ("udp", "quic"):
@@ -426,6 +437,11 @@ class App:
             self._egress_row(label, a[0]["verdict"], a[0].get("detail", ""))
         elif ev == "mitm":
             self._egress_row(f"TLS chain {a[0]}", a[1]["verdict"], a[1].get("detail") or f"issuer {a[1].get('issuer', '?')}")
+        elif ev == "throttle":
+            th = a[0]
+            for k, v in th.get("targets", {}).items():
+                self._egress_row(f"{t('ui.throttle')} {k}", f"{v.get('mbps', 0)} Mbit/s" if not v.get("error") else f"error ({v['error']})", "")
+            self._egress_row("throttling", th["verdict"], th.get("detail", ""))
         elif ev == "ssh":
             self._egress_row("SSH egress (22)", a[0], a[1])
         elif ev == "speed":
@@ -439,15 +455,15 @@ class App:
             self.btn_scan.configure(state="normal")
             self.btn_stop.configure(state="disabled")
             if self.report is None:
-                self._status.set("stopped")
-                self.level_lbl.configure(text="stopped")
+                self._status.set(t("ui.stopped"))
+                self.level_lbl.configure(text=t("ui.stopped"))
 
     def _finding(self, text, warn=False):
         self.findings.insert("end", ("  " if warn else "⚑ ") + text)
         self.findings.itemconfigure("end", foreground=YEL_FG if warn else RED_FG)
 
     def _egress_row(self, label, status, detail):
-        tag = "ok" if (status in ("ok", "open") or str(status).startswith(("open", "passed"))) else (
+        tag = "ok" if (status in ("ok", "open") or str(status).startswith(("open", "passed")) or str(status).endswith("Mbit/s")) else (
             "warn" if status in ("?", "unavailable", "refused", "tor-missing", "skipped") or str(status).startswith(("error", "tls-error", "bad-reply")) else "bad")
         for iid in self.egress.get_children():
             if self.egress.set(iid, "probe") == label:
@@ -517,22 +533,22 @@ class App:
         self.live_sites = report["sites"]
         self.rebuild_sites()
         self.draw_gauge(an["score"], an["level"])
-        self.level_lbl.configure(text=f"{an['level'].upper()} filtering — score {an['score']}/100 — "
-                                      f"{len(report['flagged'])} signals — confidence {an['confidence']}",
+        self.level_lbl.configure(text=t("ui.verdict", level=level_name(an["level"], up=True), score=an["score"],
+                                        n=len(report["flagged"]), conf=t("conf." + an["confidence"])),
                                  foreground=LEVEL_COLOR[an["level"]])
         self.summary_lbl.configure(text=an["summary"])
         tech = "  ·  ".join(f"{t} ({an['technique_labels'][t]})" for t in an["techniques"])
         if an["vendor"]:
-            tech += f"\nvendor signature: {an['vendor']}"
+            tech += "\n" + t("ui.vendor", vendor=an["vendor"])
         self.tech_lbl.configure(text=tech)
-        parts = [("VPN diagnosis\n", "h")]
+        parts = [(t("ui.vpn_diag") + "\n", "h")]
         parts += [(line + "\n", c) for c, line in core.vpn_advice(report)]
-        parts.append(("\nTunnel / circumvention\n", "h"))
+        parts.append(("\n" + t("ui.tunnel") + "\n", "h"))
         parts += [(line + "\n", c) for c, line in core.tunnel_advice(report)]
         self._set_text(self.advice, parts)
         tm = report.get("timings", {})
         self.progress.configure(value=self.progress.cget("maximum"))
-        self._status.set(f"done in {tm.get('total_ms', 0) / 1000:.0f}s — {len(report['flagged'])} signals")
+        self._status.set(t("ui.done", s=f"{tm.get('total_ms', 0) / 1000:.0f}", n=len(report["flagged"])))
         self.findings.insert("end", f"✓ scan done — score {an['score']} ({an['level']})")
         self.findings.itemconfigure("end", foreground=GREEN_FG)
         try:
@@ -563,7 +579,7 @@ class App:
     # ── actions ──────────────────────────────────────────────────────────────
     def _need_report(self):
         if not self.report:
-            messagebox.showinfo("filterscope", "Run a scan first.")
+            messagebox.showinfo("filterscope", t("ui.no_report"))
             return False
         return True
 
@@ -578,6 +594,36 @@ class App:
         if p:
             scan.write_outputs(self.report, html_path=p, history=False)
             self._status.set(f"saved {os.path.basename(p)}")
+
+    def save_card(self):
+        if not self._need_report():
+            return
+        p = filedialog.asksaveasfilename(defaultextension=".png", initialfile=self._default_name("png"),
+                                         filetypes=[("PNG image", "*.png")])
+        if p:
+            from .card import render_card
+            render_card(self.report, p, show_network=messagebox.askyesno("filterscope", "Include the network name on the card?"))
+            self._status.set(t("ui.saved", name=os.path.basename(p)))
+            open_path(p)
+
+    def toggle_lang(self):
+        cfg = config.load()
+        cfg["lang"] = "tr" if get_lang() == "en" else "en"
+        config.save(cfg)
+        set_lang(cfg["lang"])
+        messagebox.showinfo("filterscope", {"tr": "Dil Türkçe olarak kaydedildi — yeniden başlatınca uygulanır.",
+                                            "en": "Language saved as English — restart to apply."}[cfg["lang"]])
+
+    def check_update_async(self):
+        if not config.load().get("update_check", True):
+            return
+        def worker():
+            u = core.check_update()
+            if u and u.get("newer"):
+                self._update_url = u["url"]
+                self.root.after(0, lambda: self.update_lbl.configure(text="  " + t("ui.update", latest=u["latest"]) + "  ") or
+                                self.update_lbl.pack(fill="x", padx=12, pady=(0, 6), after=self.root.winfo_children()[1]))
+        threading.Thread(target=worker, daemon=True).start()
 
     def save_json(self):
         if not self._need_report():
@@ -639,8 +685,11 @@ class App:
 def main(argv=None):
     if tk is None:
         sys.exit("tkinter is not available in this Python build")
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if "--lang" in argv:
+        set_lang(argv[argv.index("--lang") + 1])
     root = tk.Tk()
-    App(root)
+    App(root, autoscan=("--autoscan" in argv or "--scan" in argv))
     root.mainloop()
 
 

@@ -9,6 +9,7 @@ from rich.table import Table
 from rich.text import Text
 
 from . import analysis, core, sysinfo
+from .i18n import level_name, t
 
 console = Console(highlight=False)
 
@@ -20,6 +21,8 @@ LEVEL_BORDER = {"clean": "green", "light": "yellow", "moderate": "yellow", "heav
 
 def verdict_text(v, good=("ok", "open")) -> Text:
     v = v or "—"
+    if v.endswith("Mbit/s"):
+        return Text(v, style="cyan")
     if v in good or v.startswith("open") or v.startswith("passed"):
         return Text(v, style="bold green")
     if v in NEUTRAL_YELLOW or v.startswith(("error", "tls-error", "bad-reply", "responded", "testing")):
@@ -70,17 +73,17 @@ def analysis_panel(report) -> Panel:
     head.append(f" {an['score']:>3}/100 ", style=LEVEL_STYLE[lvl])
     head.append("  ")
     head.append_text(score_bar(an["score"]))
-    head.append(f"   {lvl.upper()}", style=LEVEL_STYLE[lvl])
-    head.append(f"   confidence {an['confidence']}", style="dim")
+    head.append(f"   {level_name(lvl, up=True)}", style=LEVEL_STYLE[lvl])
+    head.append(f"   {t('html.confidence')} {t('conf.' + an['confidence'])}", style="dim")
     lines = [head, Text(""), Text(an["summary"])]
     if an["techniques"]:
-        t = Text("\ntechniques: ", style="dim")
+        tt = Text("\ntechniques: ", style="dim")
         for i, k in enumerate(an["techniques"]):
-            t.append(k, style="bold red")
-            t.append(f" ({an['technique_labels'][k]})", style="dim")
+            tt.append(k, style="bold red")
+            tt.append(f" ({an['technique_labels'][k]})", style="dim")
             if i < len(an["techniques"]) - 1:
-                t.append(" · ", style="dim")
-        lines.append(t)
+                tt.append(" · ", style="dim")
+        lines.append(tt)
     if an["vendor"]:
         lines.append(Text(f"vendor signature: {an['vendor']}", style="magenta"))
     geo = report.get("geo") or {}
@@ -169,6 +172,11 @@ def http_rows(report):
     if report.get("speed"):
         sp = report["speed"]
         rows.append(("downstream", f"{sp.get('mbps', 0)} Mbit/s", sp.get("detail", "")))
+    th = report.get("throttle") or {}
+    for k, v in th.get("targets", {}).items():
+        rows.append((f"{t('ui.throttle')} {k}", f"{v.get('mbps', 0)} Mbit/s" if not v.get("error") else f"error ({v['error']})", ""))
+    if th:
+        rows.append(("throttling", th.get("verdict", "?"), th.get("detail", "")))
     if report.get("tor"):
         rows.append(("Tor bootstrap", report["tor"]["verdict"], report["tor"]["detail"]))
     return rows
@@ -176,8 +184,8 @@ def http_rows(report):
 
 def print_header(report):
     fp = report["net"]
-    console.print(f"\n[bold]  NETWORK FILTERING TEST[/] [dim]({report.get('ts', '')})  filterscope {report.get('version', '')}[/]")
-    console.print(f"[dim]  network: {escape(sysinfo.net_name(fp))}  [id {fp['id']}]  gw {escape(fp.get('gateway') or '?')}  "
+    console.print(f"\n[bold]  {t('ui.title')}[/] [dim]({report.get('ts', '')})  filterscope {report.get('version', '')}[/]")
+    console.print(f"[dim]  {t('ui.network')}: {escape(sysinfo.net_name(fp))}  [id {fp['id']}]  gw {escape(fp.get('gateway') or '?')}  "
                   f"resolver {escape(fp.get('resolver') or '?')}  {escape(fp.get('os', ''))}[/]")
     console.print("[dim]  your own traffic, clean allowlist — no inappropriate sites pinged[/]\n")
 
@@ -208,22 +216,22 @@ def print_summary(report, with_analysis=True):
         console.print(analysis_panel(report))
     fl = report.get("flagged") or core.flagged(report)
     if fl:
-        console.print(f"\n[bold red]  ⚑ {len(fl)} interference signals[/]")
+        console.print(f"\n[bold red]  ⚑ {t('ui.signals', n=len(fl))}[/]")
         for f in fl:
             console.print(f"     {escape(f)}")
     else:
-        console.print("\n[bold green]  No clear interference detected.[/]")
+        console.print(f"\n[bold green]  {t('ui.no_interference')}[/]")
     ech_bypass = [dom for dom, d in report.get("sites", {}).items()
                   if d["sni"]["verdict"] == "SNI-DPI" and d.get("ech")]
     if ech_bypass:
-        console.print("[green]  ⓘ reachable via ECH (SNI-DPI bypassed):[/] " + ", ".join(ech_bypass))
+        console.print(f"[green]  ⓘ {t('ui.ech_bypass')}[/] " + ", ".join(ech_bypass))
     transient = [dom for dom, d in report.get("sites", {}).items() if d.get("transient")]
     if transient:
-        console.print("[yellow]  ⓘ transient (not reproduced on retry, ignored):[/] " + ", ".join(transient))
-    console.print("\n[bold]  ── VPN DIAGNOSIS ──[/]")
+        console.print(f"[yellow]  ⓘ {t('ui.transient')}[/] " + ", ".join(transient))
+    console.print(f"\n[bold]  ── {t('ui.vpn_diag').upper()} ──[/]")
     for c, line in core.vpn_advice(report):
         console.print(_c(c, "  " + line))
-    console.print("\n[bold]  ── TUNNEL / CIRCUMVENTION ──[/]")
+    console.print(f"\n[bold]  ── {t('ui.tunnel').upper()} ──[/]")
     for c, line in core.tunnel_advice(report):
         console.print(_c(c, "  " + line))
     tm = report.get("timings", {})

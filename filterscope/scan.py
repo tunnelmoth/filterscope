@@ -33,14 +33,14 @@ from dataclasses import dataclass, field
 from . import __version__, analysis, core, sysinfo
 
 ALL_STEPS = ("sites", "ports", "udp", "quic", "ipv6", "dns", "proxy", "ssh",
-             "mitm", "nxdomain", "urlfilter", "geo", "tor")
+             "mitm", "nxdomain", "urlfilter", "geo", "throttle", "tor")
 
 STEP_LABELS = {
     "sites": "sites: DNS / TLS-SNI / block page / ECH", "ports": "outbound TCP ports",
     "udp": "UDP egress (STUN)", "quic": "QUIC / UDP-443", "ipv6": "IPv6 egress",
     "dns": "encrypted DNS + port-53 interception", "proxy": "transparent HTTP proxy",
     "ssh": "SSH egress", "mitm": "TLS interception (MITM)", "nxdomain": "NXDOMAIN hijack",
-    "urlfilter": "URL keyword filter", "geo": "vantage point", "tor": "Tor bootstrap",
+    "urlfilter": "URL keyword filter", "geo": "vantage point", "throttle": "throughput / throttling", "tor": "Tor bootstrap",
 }
 
 
@@ -127,7 +127,7 @@ def run_scan(opts: ScanOptions, emit=_noop, cancelled=lambda: False) -> dict:
               "sites": {}, "ports": {}, "udp": "", "udp_detail": {},
               "quic": "", "quic_detail": {}, "ipv6": {}, "dns_encrypted": {},
               "dns_intercept": {}, "http_proxy": {}, "ssh": "", "tls_intercept": {},
-              "nxdomain": {}, "url_filter": {}, "tor": {}, "speed": {},
+              "nxdomain": {}, "url_filter": {}, "tor": {}, "speed": {}, "throttle": {},
               "verified": opts.verify, "steps": list(opts.steps), "timings": {}}
     emit("net", fp)
     steps = set(opts.steps)
@@ -183,6 +183,8 @@ def run_scan(opts: ScanOptions, emit=_noop, cancelled=lambda: False) -> dict:
         submit("url_filter", "", core.url_keyword_test, opts.timeout)
     if "geo" in steps:
         submit("geo", "", core.geo_context, opts.timeout)
+    if "throttle" in steps:
+        submit("throttle", "", core.throttle_test)
     if opts.speed:
         submit("speed", "", core.speed_test)
 
@@ -253,6 +255,9 @@ def run_scan(opts: ScanOptions, emit=_noop, cancelled=lambda: False) -> dict:
             elif kind == "speed":
                 report["speed"] = r
                 emit("speed", r)
+            elif kind == "throttle":
+                report["throttle"] = r
+                emit("throttle", r)
             emit("progress", done, total)
 
         if report["udp_detail"]:
@@ -313,6 +318,7 @@ def run_scan(opts: ScanOptions, emit=_noop, cancelled=lambda: False) -> dict:
     report["timings"]["total_ms"] = int((time.monotonic() - t_start) * 1000)
     report["flagged"] = core.flagged(report)
     report["analysis"] = analysis.analyze(report)
+    report["lang"] = __import__("filterscope.i18n", fromlist=["get_lang"]).get_lang()
     emit("analysis", report["analysis"])
     emit("done", report)
     return report

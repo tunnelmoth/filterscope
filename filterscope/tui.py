@@ -20,6 +20,7 @@ from textual.widgets import (DataTable, Footer, Header, Input, Label, ProgressBa
 from textual.worker import get_current_worker
 
 from . import __version__, analysis, config, core, scan, sysinfo
+from .i18n import level_name, t
 from .render import (LEVEL_STYLE, analysis_panel, category_table, ech_text, score_bar, site_flagged,
                      verdict_text)
 
@@ -27,7 +28,7 @@ EGRESS_ROWS = ["UDP egress (STUN)", "QUIC/UDP-443", "IPv6", "SSH banner",
                "DoH cloudflare", "DoH google", "DoH adguard", "DoT cloudflare", "DoT google", "DoT quad9",
                "DNS-53 interception", "NXDOMAIN hijack", "HTTP proxy", "URL keyword filter",
                "TLS chain wikipedia.org", "TLS chain github.com", "TLS chain duckduckgo.com", "TLS chain bbc.com",
-               "Tor bootstrap"]
+               "throttling", "Tor bootstrap"]
 
 HELP = """\
 [b]filterscope[/b] measures the filtering behaviour of the network you are on, using only your
@@ -166,6 +167,14 @@ class FilterScope(App):
         self.query_one("#advice", Static).border_title = "diagnosis & advice"
         self.load_history()
         self.action_rescan()
+        self.run_worker(self._check_update, thread=True, group="update")
+
+    def _check_update(self):
+        if not config.load().get("update_check", True):
+            return
+        u = core.check_update(timeout=5)
+        if u and u.get("newer"):
+            self.call_from_thread(self.notify, f"{t('ui.update', latest=u['latest'])}: {u['url']}", title="filterscope", timeout=12)
 
     # ── header ──
     def set_net(self, fp):
@@ -290,10 +299,10 @@ class FilterScope(App):
         self.query_one("#analysis", Static).update(analysis_panel(report))
         self.query_one("#cats", Static).update(category_table(report))
         adv = Text()
-        adv.append("VPN diagnosis\n", style="bold")
+        adv.append(t("ui.vpn_diag") + "\n", style="bold")
         for c, line in core.vpn_advice(report):
             adv.append(line + "\n", style=ADV_STYLE.get(c, "dim"))
-        adv.append("\nTunnel / circumvention\n", style="bold")
+        adv.append("\n" + t("ui.tunnel") + "\n", style="bold")
         for c, line in core.tunnel_advice(report):
             adv.append(line + "\n", style=ADV_STYLE.get(c, "dim"))
         self.query_one("#advice", Static).update(adv)
@@ -301,8 +310,8 @@ class FilterScope(App):
         sl.append(f" {an['score']:>3}/100 ", style=LEVEL_STYLE[an["level"]])
         sl.append(" ")
         sl.append_text(score_bar(an["score"], 30))
-        sl.append(f"  {an['level'].upper()}", style=LEVEL_STYLE[an["level"]])
-        sl.append(f"  {len(report['flagged'])} signals · confidence {an['confidence']}", style="dim")
+        sl.append(f"  {level_name(an['level'], up=True)}", style=LEVEL_STYLE[an["level"]])
+        sl.append(f"  {t('ui.signals', n=len(report['flagged']))} · {t('html.confidence')} {t('conf.' + an['confidence'])}", style="dim")
         if an["vendor"]:
             sl.append(f" · {an['vendor']}", style="magenta")
         tm = report.get("timings", {})
@@ -441,6 +450,8 @@ class FilterScope(App):
                 cft(self.update_row, f"TLS chain {a[0]}", a[1]["verdict"])
             elif ev == "ssh":
                 cft(self.update_row, "SSH banner", a[0])
+            elif ev == "throttle":
+                cft(self.update_row, "throttling", a[0].get("verdict", "?"))
             elif ev == "verify_start":
                 cft(self.log_write, f"[dim]re-checking {a[0]} positives…[/]")
             elif ev == "verify":

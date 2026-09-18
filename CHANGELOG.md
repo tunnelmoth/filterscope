@@ -1,5 +1,36 @@
 # Changelog
 
+## 3.4.116 — 2026-09-19 · **stable**
+
+### Throttling detection
+- New `throttle` step: 4 MB Range downloads from five CDNs (Cloudflare, Google, Akamai/Steam,
+  Microsoft, Fastly/Debian). A target below 25 % of the best one on the same link is reported as
+  **THROTTLED** — the sneaky filter that blocks nothing but makes video and games unusable. Shown in
+  every UI, counted in the score (`throttling` technique). Off in the `quick` and `vpn` profiles.
+
+### Turkish
+- Full Turkish UI: desktop window, TUI, CLI headings, HTML report, share card and Android — including
+  the verdict sentence and all advice. Auto from the system locale; `--lang tr|en`, config `lang`, the
+  EN/TR button in the window, `FILTERSCOPE_LANG`.
+
+### Share card
+- `--card out.png`, **Save ▾ → Share card…** in the window, **Card** on Android: a 1200×630 PNG with
+  the gauge, level, techniques and top affected categories (network name optional). Fonts bundled.
+
+### Update check
+- One request to the GitHub releases API at start (CLI: after a scan). Newer version → banner in the
+  window / toast in the TUI / one line in the CLI / tap-to-download bar on Android. `config set
+  update_check false` to disable.
+
+### Shell integration
+- Windows installer option: **“Measure this network with filterscope”** in the desktop right-click
+  menu (opens the app and scans immediately; `filterscope-gui --autoscan`).
+- Android **home-screen widget**: last score and level; tap = open and scan.
+
+### Fixes
+- Throughput values are no longer coloured as findings; confidence is translated; Turkish upper-case
+  (İ) handled.
+
 ## 3.3.114 — 2026-09-19 · **stable**
 
 ### Much wider test list

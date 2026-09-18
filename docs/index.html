@@ -20,7 +20,7 @@
   <div class="bg" aria-hidden="true"></div><div class="fade" aria-hidden="true"></div>
   <div class="lang"><button id="lang-en" class="on" type="button">EN</button><button id="lang-tr" type="button">TR</button></div>
   <div class="wrap"><div class="txt">
-    <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.3.114 · stable</span></div>
+    <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.4.116 · stable</span></div>
     <h1 data-en>See what your network <span>blocks</span>.</h1>
     <h1 data-tr>Ağının neyi <span>engellediğini</span> gör.</h1>
     <p class="lead" data-en>One click. filterscope measures the filtering on the network you are on — DNS tampering, TLS server-name inspection, HTTPS interception, blocked ports and protocols — using only <b>your own traffic</b> and a <b>clean list of well-known sites</b>. Then it tells you, in plain language, what is going on and what to do.</p>
@@ -67,6 +67,7 @@
     <div class="card"><span class="k">DNS</span><h3 data-en>DNS tampering &amp; interception</h3><h3 data-tr>DNS kurcalama ve müdahale</h3><p data-en>Hijack to a block page, withheld answers, transparent port-53 proxies (a query to an address that cannot answer… answers), NXDOMAIN hijacking, and whether DoH/DoT themselves are blocked.</p><p data-tr>Engel sayfasına yönlendirme, yutulan cevaplar, port-53'e transparan müdahale (cevap veremeyecek bir adrese sorgu… cevap veriyor), NXDOMAIN kaçırma ve DoH/DoT'un kendisinin engellenip engellenmediği.</p></div>
     <div class="card"><span class="k">PORTS · UDP · QUIC</span><h3 data-en>Outbound reachability</h3><h3 data-tr>Dışa erişim</h3><p data-en>TCP ports used by VPNs and SSH, UDP egress via STUN, and a QUIC version-negotiation probe for HTTP/3 — timeouts mean dropped packets, refusals mean the packet got out.</p><p data-tr>VPN ve SSH'nin kullandığı TCP portları, STUN ile UDP çıkışı ve HTTP/3 için QUIC sürüm-pazarlığı sondası — zaman aşımı düşürülen paket, red ise paketin çıkabildiği anlamına gelir.</p></div>
     <div class="card"><span class="k">BLOCKPAGE · PROXY</span><h3 data-en>Block pages &amp; appliances</h3><h3 data-tr>Engel sayfaları ve cihazlar</h3><p data-en>Signatures of FortiGate, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, Netsweeper, Palo Alto, Zscaler, BTK/5651 and more; transparent-proxy headers; URL keyword filters tested with benign words.</p><p data-tr>FortiGate, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, Netsweeper, Palo Alto, Zscaler, BTK/5651 ve daha fazlasının imzaları; transparan proxy başlıkları; zararsız kelimelerle test edilen URL anahtar-kelime filtreleri.</p></div>
+    <div class="card"><span class="k">THROTTLING</span><h3 data-en>Slowed, not blocked</h3><h3 data-tr>Engellenmemiş, kısılmış</h3><p data-en>Downloads from five CDNs on the same link. One of them at a quarter of the others = selective throttling — the filter that breaks video and games while everything looks “open”.</p><p data-tr>Aynı hat üzerinden beş CDN'den indirme. Biri diğerlerinin çeyreğindeyse seçici kısıtlama var — her şey “açık” görünürken videoyu ve oyunu bozan filtre.</p></div>
     <div class="card"><span class="k">VPN · TOR · ECH</span><h3 data-en>Can I get around it?</h3><h3 data-tr>Aşabilir miyim?</h3><p data-en>Whether VPN sites and APIs are reachable (why your app fails at login), a real Tor bootstrap, and whether a blocked site publishes ECH — in which case the block is bypassable with a modern browser.</p><p data-tr>VPN siteleri ve API'leri erişilebilir mi (uygulaman neden girişte takılıyor), gerçek bir Tor bootstrap'i ve engelli sitenin ECH yayınlayıp yayınlamadığı — yayınlıyorsa engel modern bir tarayıcıyla aşılabilir.</p></div>
   </div>
 </section>
@@ -92,7 +93,7 @@
 
 <section id="downloads">
   <h2 data-en>Downloads</h2><h2 data-tr>İndir</h2>
-  <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.3.114</b> (stable) · <a id="sums" data-asset="SHA256SUMS.txt" href="https://github.com/tunnelmoth/filterscope/releases/latest">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
+  <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.4.116</b> (stable) · <a id="sums" data-asset="SHA256SUMS.txt" href="https://github.com/tunnelmoth/filterscope/releases/latest">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
   <div class="tablewrap"><table id="dl">
     <thead><tr><th data-en>Platform</th><th data-tr>Platform</th><th data-en>File</th><th data-tr>Dosya</th><th data-en>Notes</th><th data-tr>Not</th></tr></thead>
     <tbody>

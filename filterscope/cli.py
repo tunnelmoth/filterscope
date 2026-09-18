@@ -20,6 +20,7 @@ import sys
 import time
 
 from . import __version__, analysis, config, core, scan, sysinfo
+from .i18n import set_lang, t
 
 
 def _scan_opts(a) -> scan.ScanOptions:
@@ -63,7 +64,9 @@ def add_scan_args(ap, tui=False):
     ap.add_argument("--domains-file", help="file with one extra domain per line")
     ap.add_argument("--speed", action="store_true", help="also measure downstream throughput")
     ap.add_argument("--workers", type=int, help="parallel probes (default 20)")
+    ap.add_argument("--lang", choices=["en", "tr"], help="output language (default: config / system locale)")
     if not tui:
+        ap.add_argument("--card", help="write a 1200×630 PNG share card")
         ap.add_argument("--json", help="write the full report to a JSON file")
         ap.add_argument("--anon-json", help="write an anonymized (shareable) report")
         ap.add_argument("--html", help="write a self-contained HTML evidence report")
@@ -122,6 +125,8 @@ def _run_with_progress(opts, quiet=False):
 
 def cmd_scan(a) -> int:
     from .render import console, print_diff, print_header, print_report, print_summary
+    if a.lang:
+        set_lang(a.lang)
     opts = _scan_opts(a)
     fmt = "summary" if a.quiet else a.format
     prev = None
@@ -146,9 +151,16 @@ def cmd_scan(a) -> int:
             if older:
                 print_diff(analysis.diff(older, report), older["ts"], report["ts"])
         written = scan.write_outputs(report, a.json, a.anon_json, a.html, a.history, not a.no_history)
+        if a.card:
+            from .card import render_card
+            written.append(("share card", render_card(report, a.card)))
         if fmt != "json":
             for what, path in written:
                 console.print(f"[dim]  {what} → {escape(str(path))}[/]")
+            if config.load().get("update_check", True) and not a.watch:
+                u = core.check_update(timeout=4)
+                if u and u.get("newer"):
+                    console.print(f"[bold yellow]  ⬆ {t('ui.update', latest=u['latest'])}: {u['url']}[/]")
         if not a.watch:
             return 2 if report["flagged"] else 0
         prev = report
@@ -167,6 +179,8 @@ def cmd_gui(a) -> int:
 
 def cmd_tui(a) -> int:
     from .tui import run_tui
+    if a.lang:
+        set_lang(a.lang)
     run_tui(_scan_opts(a), a.outdir)
     return 0
 
@@ -203,10 +217,16 @@ def cmd_history(a) -> int:
 
 def cmd_report(a) -> int:
     from .render import print_report
+    if getattr(a, "lang", None):
+        set_lang(a.lang)
     with open(a.json_file, encoding="utf-8") as f:
         report = json.load(f)
     report.setdefault("flagged", core.flagged(report))
-    report.setdefault("analysis", analysis.analyze(report))
+    report["analysis"] = analysis.analyze(report)
+    if a.card:
+        from .card import render_card
+        print(f"share card → {render_card(report, a.card)}")
+        return 0
     if a.html:
         from .htmlreport import render_html
         with open(a.html, "w", encoding="utf-8") as f:
@@ -286,6 +306,8 @@ def build_parser():
     p = sub.add_parser("report", help="re-render a saved JSON report (console or --html)")
     p.add_argument("json_file")
     p.add_argument("--html")
+    p.add_argument("--card", help="write a PNG share card instead")
+    p.add_argument("--lang", choices=["en", "tr"])
     p.add_argument("--flagged-only", action="store_true")
     p.set_defaults(fn=cmd_report)
 

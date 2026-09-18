@@ -57,11 +57,13 @@ data class UiState(
     val history: List<HistoryRow> = emptyList(),
     val reportJson: String? = null,
     val error: String? = null,
+    val update: Pair<String, String>? = null,   // latest version, url
 )
 
 private val NEUTRAL = setOf("ok", "?", "no-dns", "unreachable", "")
 
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
+    var autoscanPending = false
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
 
@@ -72,11 +74,20 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val files = getApplication<Application>().filesDir.absolutePath
-                val version = bridge.callAttr("init", files).toString()
+                val lang = java.util.Locale.getDefault().language.let { if (it == "tr") "tr" else "en" }
+                val version = bridge.callAttr("init", files, lang).toString()
                 val profiles = JSONArray(bridge.callAttr("profiles").toString()).let { a -> List(a.length()) { a.getString(it) } }
                 val saved = try { getApplication<Application>().getSharedPreferences("fs", Context.MODE_PRIVATE).getString("domains", "") ?: "" } catch (_: Exception) { "" }
                 _state.update { it.copy(ready = true, version = version, profiles = profiles, domains = saved) }
                 loadHistory()
+                try {
+                    val u = bridge.callAttr("check_update").toString()
+                    if (u != "null") {
+                        val o = JSONObject(u)
+                        if (o.optBoolean("newer")) _state.update { it.copy(update = o.optString("latest") to o.optString("url")) }
+                    }
+                } catch (_: Exception) {}
+                if (autoscanPending) { autoscanPending = false; startScan() }
             } catch (e: Exception) {
                 _state.update { it.copy(error = "engine failed to start: ${e.message}") }
             }
@@ -129,7 +140,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 val json = bridge.callAttr("start", s.profile, s.label, listener, s.domains).toString()
                 finish(json)
             } catch (e: Exception) {
-                _state.update { it.copy(scanning = false, status = "failed", error = e.message ?: e.toString()) }
+                _state.update { it.copy(scanning = false, status = S.failed, error = e.message ?: e.toString()) }
             }
         }
     }
@@ -149,7 +160,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
             }
             "progress" -> {
                 val done = a.getInt(0); val total = a.getInt(1).coerceAtLeast(1)
-                _state.update { it.copy(progress = done.toFloat() / total, status = "probing $done/$total") }
+                _state.update { it.copy(progress = done.toFloat() / total, status = S.probing(done, total)) }
             }
             "site" -> addSite(a.getString(0), a.getJSONObject(1), announce = true)
             "verify" -> {
@@ -157,7 +168,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 addSite(dom, a.getJSONObject(2), announce = false)
                 if (!ok) finding("↺ $dom: not reproduced on retry — dropped", "y")
             }
-            "verify_start" -> _state.update { it.copy(status = "re-checking ${a.getInt(0)} positives…") }
+            "verify_start" -> _state.update { it.copy(status = S.recheck(a.getInt(0))) }
             "port" -> probe(a.getString(0), a.getString(1), "")
             "udp" -> probe("UDP STUN ${a.getString(0)}", a.getString(1), "")
             "quic" -> probe("QUIC ${a.getString(0)}", a.getString(1), "")
@@ -173,11 +184,20 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 probe("TLS chain ${a.getString(0)}", o.optString("verdict"), o.optString("detail").ifEmpty { "issuer ${o.optString("issuer", "?")}" })
             }
             "ssh" -> probe("SSH egress (22)", a.getString(0), a.optString(1))
+            "throttle" -> {
+                val th = a.getJSONObject(0)
+                val tg = th.optJSONObject("targets")
+                tg?.keys()?.forEach { k ->
+                    val v = tg.getJSONObject(k)
+                    probe("throughput $k", if (v.optString("error").isEmpty()) "${v.optDouble("mbps")} Mbit/s" else "error (${v.optString("error")})", "")
+                }
+                probe("throttling", th.optString("verdict"), th.optString("detail"))
+            }
         }
     }
 
     private fun isBad(status: String): Boolean =
-        !(status == "ok" || status == "open" || status.startsWith("open") || status.startsWith("passed") ||
+        !(status == "ok" || status == "open" || status.startsWith("open") || status.startsWith("passed") || status.endsWith("Mbit/s") ||
                 status in setOf("?", "unavailable", "refused", "tor-missing", "skipped") ||
                 status.startsWith("error") || status.startsWith("tls-error") || status.startsWith("bad-reply"))
 
@@ -226,20 +246,21 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         val rep = JSONObject(json)
         val an = rep.optJSONObject("analysis")
         if (an == null) {   // cancelled
-            _state.update { it.copy(scanning = false, status = "stopped") }
+            _state.update { it.copy(scanning = false, status = S.stopped) }
             return
         }
         val techs = an.getJSONArray("techniques"); val labels = an.getJSONObject("technique_labels")
         val tl = List(techs.length()) { techs.getString(it) to labels.optString(techs.getString(it)) }
         val advice = mutableListOf<Pair<String, String>>()
-        advice += "VPN diagnosis" to "h"
+        advice += (if (java.util.Locale.getDefault().language == "tr") "VPN tanısı" else "VPN diagnosis") to "h"
         advice += lines(rep, "vpn")
-        advice += "Tunnel / circumvention" to "h"
+        advice += (if (java.util.Locale.getDefault().language == "tr") "Tünel / aşma" else "Tunnel / circumvention") to "h"
         advice += lines(rep, "tunnel")
         val n = rep.optJSONArray("flagged")?.length() ?: 0
         val tm = rep.optJSONObject("timings")?.optInt("total_ms") ?: 0
+        try { FilterWidget.refresh(getApplication()) } catch (_: Exception) {}
         _state.update {
-            it.copy(scanning = false, progress = 1f, status = "done in ${tm / 1000}s — $n signals", reportJson = json,
+            it.copy(scanning = false, progress = 1f, status = S.done(tm / 1000, n), reportJson = json,
                 score = an.getInt("score"), level = an.getString("level"), summary = an.getString("summary"),
                 techniques = tl, vendor = an.optString("vendor"), confidence = an.optString("confidence"), advice = advice,
                 findings = it.findings + ("✓ scan done — score ${an.getInt("score")} (${an.getString("level")})" to "g"))
@@ -247,14 +268,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         loadHistory()
     }
 
-    /** Advice lines come from Python (same text as the CLI). */
+    /** Advice lines come from Python (same text as the CLI, localized). */
     private fun lines(rep: JSONObject, which: String): List<Pair<String, String>> {
         return try {
-            val mod = py.getModule("filterscope.core")
-            val fn = if (which == "vpn") "vpn_advice" else "tunnel_advice"
-            val pyRep = py.getModule("json").callAttr("loads", rep.toString())
-            val res = mod.callAttr(fn, pyRep).asList()
-            res.map { pair -> val t = pair.asList(); t[1].toString() to t[0].toString() }
+            val o = JSONObject(bridge.callAttr("advice", rep.toString()).toString())
+            val arr = o.getJSONArray(which)
+            List(arr.length()) { i -> val p = arr.getJSONArray(i); p.getString(1) to p.getString(0) }
         } catch (e: Exception) { listOf("advice unavailable: ${e.message}" to "d") }
     }
 
@@ -272,6 +291,14 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    suspend fun renderCardFile(showNetwork: Boolean): File? = withContext(Dispatchers.IO) {
+        val json = _state.value.reportJson ?: return@withContext null
+        val dir = File(getApplication<Application>().cacheDir, "reports").apply { mkdirs() }
+        val f = File(dir, "filterscope-card-" + java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date()) + ".png")
+        bridge.callAttr("render_card", json, f.absolutePath, showNetwork)
+        f
+    }
+
     suspend fun renderReportFile(): File? = withContext(Dispatchers.IO) {
         val json = _state.value.reportJson ?: return@withContext null
         val html = bridge.callAttr("render_html", json).toString()
@@ -286,13 +313,13 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         val json = _state.value.reportJson ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val res = bridge.callAttr("diff_prev", json).toString()
-            if (res == "null") { finding("no earlier stored scan of this network", "n"); return@launch }
+            if (res == "null") { finding(S.noEarlier, "n"); return@launch }
             val d = JSONObject(res)
             finding("vs ${d.optString("old_ts")}: score ${d.optInt("score_old")} → ${d.optInt("score_new")}", "n")
             val add = d.getJSONArray("added"); val rem = d.getJSONArray("removed")
-            for (i in 0 until add.length()) finding("  + new block: ${add.getString(i)}", "r")
-            for (i in 0 until rem.length()) finding("  − lifted: ${rem.getString(i)}", "g")
-            if (add.length() == 0 && rem.length() == 0) finding("  no change", "n")
+            for (i in 0 until add.length()) finding("  + ${S.newBlock}: ${add.getString(i)}", "r")
+            for (i in 0 until rem.length()) finding("  − ${S.lifted}: ${rem.getString(i)}", "g")
+            if (add.length() == 0 && rem.length() == 0) finding("  ${S.noChange}", "n")
         }
     }
 }

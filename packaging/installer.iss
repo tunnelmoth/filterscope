@@ -30,6 +30,7 @@ ChangesEnvironment=yes
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 Name: "addtopath"; Description: "Add the command-line tool to PATH (filterscope in any terminal)"; GroupDescription: "Command line:"; Flags: unchecked
+Name: "contextmenu"; Description: "Add 'Measure this network with filterscope' to the desktop right-click menu"; GroupDescription: "Shell integration:"
 
 [Files]
 Source: "..\dist\filterscope-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -45,6 +46,9 @@ Name: "{autodesktop}\filterscope"; Filename: "{app}\filterscope-gui.exe"; Tasks:
 
 [Registry]
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NeedsAddPath('{app}')
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\shell\filterscope"; ValueType: string; ValueName: ""; ValueData: "Measure this network with filterscope"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\shell\filterscope"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\filterscope-gui.exe,0"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\DesktopBackground\shell\filterscope\command"; ValueType: string; ValueName: ""; ValueData: """{app}\filterscope-gui.exe"" --autoscan"; Tasks: contextmenu; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\filterscope-gui.exe"; Description: "Launch filterscope"; Flags: nowait postinstall skipifsilent

@@ -673,6 +673,72 @@ def speed_test(mbytes=10, timeout=30):
     return {"mbps": round(n * 8 / dt / 1e6, 1), "bytes": n, "seconds": round(dt, 2), "detail": ""}
 
 
+# ── throughput / throttling ───────────────────────────────────────────────────
+# Public, large, Range-capable files on the CDNs that games/video actually use.
+THROTTLE_TARGETS = {
+    "cloudflare": "https://speed.cloudflare.com/__down?bytes=4000000",
+    "google": "https://dl.google.com/chrome/install/latest/chrome_installer.exe",
+    "akamai-steam": "https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe",
+    "microsoft": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+    "fastly-debian": "https://deb.debian.org/debian/ls-lR.gz",
+}
+
+
+def throughput_one(url, mbytes=4, seconds=8):
+    t0 = time.monotonic()
+    n = 0
+    try:
+        with requests.get(url, stream=True, timeout=(6, 6), allow_redirects=True,
+                          headers={"User-Agent": UA, "Range": f"bytes=0-{mbytes * 1_000_000 - 1}"}) as r:
+            r.raise_for_status()
+            for chunk in r.iter_content(65536):
+                n += len(chunk)
+                if n >= mbytes * 1_000_000 or time.monotonic() - t0 > seconds:
+                    break
+    except Exception as e:
+        return {"mbps": 0.0, "bytes": n, "error": type(e).__name__}
+    dt = max(time.monotonic() - t0, 0.05)
+    return {"mbps": round(n * 8 / dt / 1e6, 1), "bytes": n, "seconds": round(dt, 2), "error": ""}
+
+
+def throttle_test(targets=None, mbytes=4):
+    """Sequential downloads from several CDNs; a target far below the best one on the
+    same link = selective throttling (video/game CDNs are the usual victims)."""
+    targets = targets or THROTTLE_TARGETS
+    res = {}
+    for name, url in targets.items():
+        res[name] = throughput_one(url, mbytes)
+    ok = {k: v["mbps"] for k, v in res.items() if not v["error"] and v["bytes"] > 200_000}
+    best = max(ok.values()) if ok else 0.0
+    throttled = sorted(k for k, m in ok.items() if best >= 5 and m < best * 0.25)
+    verdict = "THROTTLED" if throttled else ("ok" if ok else "?")
+    return {"verdict": verdict, "best_mbps": best, "throttled": throttled, "targets": res,
+            "detail": ("throttled: " + ", ".join(f"{k} {ok[k]} Mbps" for k in throttled) + f" vs best {best} Mbps")
+                      if throttled else (f"best {best} Mbps, all targets within range" if ok else "no target reachable")}
+
+
+# ── update check ──────────────────────────────────────────────────────────────
+RELEASES_API = "https://api.github.com/repos/tunnelmoth/filterscope/releases/latest"
+RELEASES_URL = "https://github.com/tunnelmoth/filterscope/releases/latest"
+
+
+def _vtuple(v):
+    return tuple(int(x) for x in re.findall(r"\d+", v)[:3])
+
+
+def check_update(timeout=6):
+    """Returns {'latest': '3.4.120', 'url': ..., 'newer': bool} or None on any failure."""
+    try:
+        r = requests.get(RELEASES_API, timeout=timeout, headers={"User-Agent": UA, "Accept": "application/vnd.github+json"})
+        r.raise_for_status()
+        tag = str(r.json().get("tag_name", "")).lstrip("v")
+        if not tag:
+            return None
+        return {"latest": tag, "url": RELEASES_URL, "newer": _vtuple(tag) > _vtuple(__version__)}
+    except Exception:
+        return None
+
+
 # ── port / protocol ───────────────────────────────────────────────────────────
 def port_test(label, port, timeout):
     """timeout = packets dropped (real filter). refused/RST = packet got out → no filter."""
@@ -883,47 +949,41 @@ def geo_context(timeout):
 
 
 # ── advice ────────────────────────────────────────────────────────────────────
-def tunnel_advice(report):
-    """Tunnel methods that bypass SNI-DPI/filtering — advice based on observations."""
+def tunnel_advice_items(report):
+    """(color, key, params) — render with i18n.t. Tunnel methods that bypass what was observed."""
     out = []
     ssh_status = report.get("ssh", "")
     sni_dpi = any(d["sni"]["verdict"] == "SNI-DPI" for d in report["sites"].values())
     p443 = not report["ports"].get("HTTPS 443", "").startswith("BLOCKED")
     tor_v = report.get("tor", {}).get("verdict")
     quic = report.get("quic", "")
-
     if ssh_status == "open":
-        out.append(("g", "SSH tunnel works → `ssh -D 1080 user@server`, then SOCKS5"))
-        out.append(("d", "  127.0.0.1:1080. All traffic inside SSH, DPI can't see it."))
+        out += [("g", "adv.ssh.open", {}), ("d", "adv.ssh.open2", {})]
     elif ssh_status.startswith("BLOCKED"):
-        out.append(("r", "SSH (22) blocked → use a server listening for SSH on 443."))
-
+        out.append(("r", "adv.ssh.blocked", {}))
     if p443 and sni_dpi:
-        out.append(("g", "443 open + SNI-DPI only → SNI-hiding tunnels PASS:"))
-        out.append(("d", "  • Shadowsocks / VLESS+TLS / Trojan-Go  (harmless or empty SNI)"))
-        out.append(("d", "  • wstunnel / websocket-over-443  (tunnel inside WebSocket)"))
-        out.append(("d", "  • OpenVPN-TCP-443 or WireGuard-over-TCP (udp2raw/wstunnel)"))
-        out.append(("d", "  • Cloudflare WARP (MASQUE/443) — engage.cloudflareclient.com"))
+        out += [("g", "adv.443.sni", {}), ("d", "adv.443.l1", {}), ("d", "adv.443.l2", {}), ("d", "adv.443.l3", {}), ("d", "adv.443.l4", {})]
     elif p443:
-        out.append(("g", "443 open → TLS-based tunnels (Shadowsocks/VLESS) should work."))
+        out.append(("g", "adv.443.open", {}))
     if quic == "open":
-        out.append(("g", "QUIC/UDP-443 open → HTTP/3-based tunnels (MASQUE, Hysteria, TUIC) pass."))
+        out.append(("g", "adv.quic.open", {}))
     elif quic.startswith("BLOCKED"):
-        out.append(("y", "QUIC/UDP-443 blocked → HTTP/3 disabled here; browsers fall back to TCP."))
-
+        out.append(("y", "adv.quic.blocked", {}))
     if tor_v == "ok":
-        out.append(("g", "Tor works directly → easiest tunnel: Tor Browser / `tor` SOCKS 9050."))
+        out.append(("g", "adv.tor.ok", {}))
     elif tor_v in (None, ""):
-        out.append(("d", "Tor not tested (--no-tor). If blocked, try obfs4/Snowflake bridge."))
+        out.append(("d", "adv.tor.untested", {}))
     elif tor_v == "tor-missing":
-        out.append(("d", "Tor binary not found — install tor (or Tor Expert Bundle on Windows) to test."))
+        out.append(("d", "adv.tor.missing", {}))
     else:
-        out.append(("y", "Tor blocked directly → try obfs4 / Snowflake / meek bridge."))
+        out.append(("y", "adv.tor.blocked", {}))
+    th = report.get("throttle", {})
+    if th.get("verdict") == "THROTTLED":
+        out.append(("r", "adv.throttle", {"targets": ", ".join(th.get("throttled", []))}))
     return out
 
 
-def vpn_advice(report):
-    """Why is the VPN failing → diagnosis + advice. Returns a list of (color, text)."""
+def vpn_advice_items(report):
     out = []
     vpn_blocked = sorted(
         dom for dom, d in report["sites"].items()
@@ -932,34 +992,39 @@ def vpn_advice(report):
     udp = report.get("udp", "")
     udp_ok = udp == "open"
     p443 = not report["ports"].get("HTTPS 443", "").startswith("BLOCKED")
-
     if vpn_blocked:
-        out.append(("r", f"VPN site/API blocked (SNI-DPI): {', '.join(vpn_blocked)}"))
-        out.append(("d", "  → the app can't log in / pull config = it FAILS at connect (API, not tunnel)."))
-        out.append(("d", "  → fix: set the app up on another network and copy the config; or ECH/DoH;"))
-        out.append(("d", "    or pick a provider whose API isn't blocked."))
+        out += [("r", "adv.vpn.blocked", {"doms": ", ".join(vpn_blocked)}), ("d", "adv.vpn.why", {}),
+                ("d", "adv.vpn.fix1", {}), ("d", "adv.vpn.fix2", {})]
     if not udp:
-        out.append(("d", "UDP egress not tested in this scan (udp step skipped)."))
+        out.append(("d", "adv.udp.untested", {}))
     elif not udp_ok:
-        out.append(("r", "UDP egress blocked → WireGuard / OpenVPN-UDP FAIL."))
-        out.append(("d", f"  → switch to TCP: OpenVPN-TCP-443 (443 open: {p443}),"))
-        out.append(("d", "    WireGuard-over-TCP (wstunnel/udp2raw), OpenConnect, Shadowsocks."))
+        out += [("r", "adv.udp.blocked", {}), ("d", "adv.udp.tcp", {"p443": p443}), ("d", "adv.udp.alt", {})]
     else:
-        out.append(("g", "UDP egress open → WireGuard / OpenVPN-UDP worth trying."))
-        out.append(("d", "  → definitive end-to-end test: filterscope wg --config <wg.conf>"))
+        out += [("g", "adv.udp.open", {}), ("d", "adv.udp.test", {})]
     if not vpn_blocked and (udp_ok or not udp):
-        out.append(("g", "No clear blocking at the VPN layer; the issue may be config/provider side."))
+        out.append(("g", "adv.vpn.noclear", {}))
+    if any(r.get("verdict", "").startswith("TLS-MITM") for r in report.get("tls_intercept", {}).values()):
+        out.append(("r", "adv.mitm", {}))
     enc = report.get("dns_encrypted", {})
     if enc and all(v.startswith("BLOCKED") for v in enc.values()):
-        out.append(("r", "All DoH/DoT resolvers blocked → the network forces its own DNS; apps using "
-                         "encrypted DNS (Firefox DoH, Android Private DNS) will fail."))
-    if any(r.get("verdict", "").startswith("TLS-MITM") for r in report.get("tls_intercept", {}).values()):
-        out.append(("r", "TLS is being INTERCEPTED (SSL inspection): the network decrypts HTTPS with its own CA. "
-                         "Assume every page and login is readable by the operator; a VPN/tunnel is the only privacy."))
+        out.append(("r", "adv.encdns", {}))
     if report.get("dns_intercept", {}).get("verdict") == "INTERCEPTED":
-        out.append(("r", "Port-53 DNS is transparently intercepted → 'use 8.8.8.8' does NOTHING here; "
-                         "only DoH/DoT (if reachable) or a tunnel gives honest DNS."))
+        out.append(("r", "adv.dnsint", {}))
     return out
+
+
+def _render_items(items):
+    from .i18n import t
+    return [(c, t(k, **kw)) for c, k, kw in items]
+
+
+def tunnel_advice(report):
+    """Backwards-compatible: list of (color, localized text)."""
+    return _render_items(tunnel_advice_items(report))
+
+
+def vpn_advice(report):
+    return _render_items(vpn_advice_items(report))
 
 
 # ── evidence helpers ──────────────────────────────────────────────────────────
@@ -995,6 +1060,8 @@ def flagged(report):
         out.append("nxdomain hijack")
     if report.get("url_filter", {}).get("verdict") == "URL-KEYWORD-FILTER":
         out.append("url keyword filter")
+    if report.get("throttle", {}).get("verdict") == "THROTTLED":
+        out.append("throttling " + ",".join(report["throttle"].get("throttled", [])))
     return out
 
 
@@ -1022,6 +1089,7 @@ def history_record(report):
                            if r.get("verdict", "").startswith("TLS-MITM")),
         "nxdomain": report.get("nxdomain", {}).get("verdict", ""),
         "url_filter": report.get("url_filter", {}).get("verdict", ""),
+        "throttle": report.get("throttle", {}).get("verdict", ""),
         "score": report.get("analysis", {}).get("score"),
     }
 

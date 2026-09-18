@@ -9,7 +9,7 @@ root = os.path.abspath(os.path.join(SPECPATH, ".."))
 icon = os.path.join(root, "filterscope", "assets", "filterscope.ico")
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("rich", "dns", "certifi"):
+for pkg in ("rich", "dns", "certifi", "PIL"):
     d, b, h = collect_all(pkg)
     datas += d; binaries += b; hiddenimports += h
 datas += collect_data_files("filterscope", includes=["scripts/*.sh", "assets/*"])
@@ -35,4 +35,4 @@ exe = EXE(
 )
 if sys.platform == "darwin":
     app = BUNDLE(exe, name="filterscope.app", icon=None, bundle_identifier="org.tunnelmoth.filterscope",
-                 info_plist={"CFBundleShortVersionString": "3.3.114", "NSHighResolutionCapable": True})
+                 info_plist={"CFBundleShortVersionString": "3.4.116", "NSHighResolutionCapable": True})

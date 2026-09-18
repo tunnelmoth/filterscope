@@ -25,8 +25,8 @@ android {
         applicationId = "org.tunnelmoth.filterscope"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3314
-        versionName = "3.3.114"
+        versionCode = 3416
+        versionName = "3.4.116"
         ndk {
             // Python 3.12+ on Chaquopy is 64-bit only.
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -66,6 +66,7 @@ chaquopy {
             install("cryptography")
             install("certifi")
             install("rich")
+            install("pillow")
         }
     }
 }

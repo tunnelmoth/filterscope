@@ -7,7 +7,7 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files
 root = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("textual", "rich", "dns", "certifi"):
+for pkg in ("textual", "rich", "dns", "certifi", "PIL"):
     d, b, h = collect_all(pkg)
     datas += d; binaries += b; hiddenimports += h
 datas += collect_data_files("filterscope", includes=["scripts/*.sh", "assets/*"])

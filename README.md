@@ -4,7 +4,7 @@ Measure the **filtering / censorship** behaviour of the network you are on — l
 
 > Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
 
-**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.3.114**
+**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.4.116**
 
 Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 
@@ -41,7 +41,8 @@ Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [rel
 | **HTTP transparent proxy** | Filter-appliance headers (`Via`, `X-Squid-*`, BlueCoat, FortiGate, Sophos…) on a neutral plain-HTTP fetch. |
 | **URL keyword filter** | Benign words (vpn, proxy, tor, torrent…) in a query string to `example.com` must be served identically to a control word. |
 | **ECH / encrypted SNI** | Does the site publish `ech` in its HTTPS record? Combined with SNI-DPI detection it infers "this block is bypassable with ECH". |
-| **IPv6 egress**, **SSH egress**, **throughput** (`--speed`), **vantage point** (country / Cloudflare colo) | |
+| **Throttling** | 4 MB Range downloads from five CDNs (Cloudflare, Google, Akamai, Microsoft, Fastly); a target far below the best one on the same link = selective throttling. |
+| **IPv6 egress**, **SSH egress**, **vantage point** (country / Cloudflare colo) | |
 | **VPN diagnosis** | Are VPN sites/APIs (Proton, Mullvad, Nord, Windscribe, AirVPN) blocked at the SNI layer — explains why an app fails at login, and what to do. |
 | **Tor** | A real `tor` bootstrap to 100 %. |
 
@@ -79,18 +80,23 @@ filterscope scan --label school --json school.json --html school.html
 filterscope scan --anon-json share.json      # PII-free shareable report
 filterscope scan --format json > r.json      # machine-readable to stdout
 filterscope scan --watch 30                  # re-scan every 30 min, print what changed
-filterscope scan --flagged-only --speed      # only affected sites in the table; measure throughput
+filterscope scan --flagged-only              # only affected sites in the table
+filterscope scan --card card.png --lang tr   # PNG share card; Turkish output
 filterscope report school.json               # re-render a saved JSON (or --html out.html)
 filterscope config set label school          # persistent defaults (timeout, categories, domains, …)
 ```
 
 ### Android
 
-The app is a native (Jetpack Compose) front-end over the same Python engine (Chaquopy). Pick a label and a profile, press **Scan**; the gauge, verdict, findings, per-site rows (tap for detail), egress probes and history mirror the desktop app. **Open report** renders the HTML report in the browser, **Share** sends it anywhere. Network identity comes from Android's connectivity API (gateway, resolver, SSID when the OS exposes it).
+The app is a native (Jetpack Compose) front-end over the same Python engine (Chaquopy). A home-screen widget shows the last score; tapping it opens the app and scans. Pick a label and a profile, press **Scan**; the gauge, verdict, findings, per-site rows (tap for detail), egress probes and history mirror the desktop app. **Open report** renders the HTML report in the browser, **Share** sends it anywhere. Network identity comes from Android's connectivity API (gateway, resolver, SSID when the OS exposes it).
 
 ### Desktop window
 
-**Scan** runs the same engine; the gauge and the sentence under it are the verdict. **Open report** renders the HTML evidence report in your browser; **HTML…/JSON…** save it; **Compare** diffs against the previous stored scan of this network; the *Sites* tab has a filter box, an *affected only* toggle and a detail panel per row. F5 rescans.
+**Scan** runs the same engine; the gauge and the sentence under it are the verdict. **Open report** renders the HTML evidence report in your browser; **Save ▾** writes HTML, JSON or a PNG share card; **Sites…** picks categories and adds your own domains; **Compare** diffs against the previous stored scan of this network; the *Sites* tab has a filter box, an *affected only* toggle and a detail panel per row. F5 rescans.
+
+**Turkish**: everything is available in Turkish — auto from the system locale, or `--lang tr`, `filterscope config set lang tr`, the EN/TR button in the window.
+
+**Update check**: one request to the GitHub releases API at start; disable with `filterscope config set update_check false`.
 
 ### TUI keys
 

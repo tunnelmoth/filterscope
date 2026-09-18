@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from . import core
+from .i18n import level_name, t, tech_label
 
 TECHNIQUE_INFO = {
     "SNI-DPI":          ("TLS server-name inspection", 4),
@@ -24,6 +25,7 @@ TECHNIQUE_INFO = {
     "Tor-block":        ("Tor bootstrap blocked", 6),
     "SSH-block":        ("SSH egress blocked", 3),
     "IPv6-block":       ("IPv6 egress blocked", 1),
+    "throttling":       ("bandwidth throttling", 6),
 }
 
 LEVELS = [(0, "clean"), (1, "light"), (20, "moderate"), (45, "heavy"), (70, "severe")]
@@ -77,6 +79,8 @@ def techniques(report: dict) -> list[str]:
         t.add("SSH-block")
     if report.get("ipv6", {}).get("verdict") == "BLOCKED":
         t.add("IPv6-block")
+    if report.get("throttle", {}).get("verdict") == "THROTTLED":
+        t.add("throttling")
     return sorted(t, key=lambda k: -TECHNIQUE_INFO[k][1])
 
 
@@ -142,26 +146,26 @@ def confidence(report: dict) -> str:
 
 def summary_text(report: dict, an: dict) -> str:
     net = report.get("net", {})
-    name = net.get("label") or net.get("ssid") or "this network"
+    name = net.get("label") or net.get("ssid") or t("net.this")
     n = len(report.get("sites", {}))
     blocked = sum(r["blocked"] for r in an["categories"])
-    lvl = an["level"]
     if an["score"] == 0:
-        return (f"No interference detected on {name}: {n} sites, all outbound probes and encrypted DNS "
-                f"behaved normally.")
-    parts = [f"{name} shows {lvl} filtering (score {an['score']}/100)."]
+        return t("summary.clean", name=name, n=n)
+    parts = [t("summary.level", name=name, level=level_name(an["level"]), score=an["score"])]
     if blocked:
         worst = [r for r in an["categories"] if r["blocked"]][:3]
         cats = ", ".join(f"{r['category']} ({r['blocked']}/{r['total']})" for r in worst)
-        parts.append(f"{blocked} of {n} sites are affected, mostly {cats}.")
+        parts.append(t("summary.affected", blocked=blocked, n=n, cats=cats))
     if an["techniques"]:
-        parts.append("Techniques: " + ", ".join(TECHNIQUE_INFO[t][0] for t in an["techniques"][:4]) + ".")
+        parts.append(t("summary.techniques", list=", ".join(tech_label(x) for x in an["techniques"][:4])))
     if an["vendor"]:
-        parts.append(f"Signatures point to {an['vendor']}.")
+        parts.append(t("summary.vendor", vendor=an["vendor"]))
     if "TLS-MITM" in an["techniques"]:
-        parts.append("HTTPS is decrypted by the network — treat every session as readable by the operator.")
+        parts.append(t("summary.mitm"))
     elif "SNI-DPI" in an["techniques"] and "UDP-block" not in an["techniques"]:
-        parts.append("The filter is application-layer only; SNI-hiding tunnels and ECH get through.")
+        parts.append(t("summary.applayer"))
+    if "throttling" in an["techniques"]:
+        parts.append(t("summary.throttle", targets=", ".join(report.get("throttle", {}).get("throttled", []))))
     return " ".join(parts)
 
 
@@ -170,7 +174,7 @@ def analyze(report: dict) -> dict:
           "categories": category_impact(report), "score": score(report)}
     an["level"] = level(an["score"])
     an["confidence"] = confidence(report)
-    an["technique_labels"] = {t: TECHNIQUE_INFO[t][0] for t in an["techniques"]}
+    an["technique_labels"] = {x: tech_label(x) for x in an["techniques"]}
     an["summary"] = summary_text(report, an)
     return an
 

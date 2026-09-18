@@ -22,11 +22,13 @@ DEFAULTS = {
     "save_reports": True,    # keep full JSON of every scan under reports/
     "verify": True,          # re-check positives once before reporting them
     "workers": 20,
+    "lang": "",              # "" = auto (system locale), "en" or "tr"
+    "update_check": True,    # ask GitHub for a newer release (one request per start)
 }
 
 PROFILES = {
     "full":   {},
-    "quick":  {"tor": False, "steps_off": ["tor", "proxy", "ssh", "ipv6", "mitm", "nxdomain", "urlfilter"],
+    "quick":  {"tor": False, "steps_off": ["tor", "proxy", "ssh", "ipv6", "mitm", "nxdomain", "urlfilter", "throttle"],
                "categories": ["info", "search", "social", "chat", "messaging", "video", "games", "ai", "vpn-api",
                               "vpn-info", "news", "news-tr", "education", "dev"]},
     "school": {"categories": ["games", "video", "music", "social", "chat", "messaging", "ai", "vpn-api", "vpn-info",
@@ -34,7 +36,7 @@ PROFILES = {
     "isp":    {"categories": ["news", "news-tr", "rights", "privacy", "circumvention", "vpn-info", "vpn-api", "webproxy",
                               "social", "video", "crypto", "religion", "info", "search"]},
     "vpn":    {"categories": ["vpn-api", "vpn-info", "circumvention", "webproxy", "privacy"],
-               "steps_off": ["proxy", "urlfilter", "nxdomain"]},
+               "steps_off": ["proxy", "urlfilter", "nxdomain", "throttle"]},
 }
 
 

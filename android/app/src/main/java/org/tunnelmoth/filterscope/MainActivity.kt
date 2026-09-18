@@ -83,6 +83,7 @@ fun levelColor(level: String) = when (level) {
 }
 
 fun verdictColor(v: String): Color = when {
+    v.endsWith("Mbit/s") -> Color(0xFF3F8FD2)
     v == "ok" || v == "open" || v.startsWith("open") || v.startsWith("passed") -> Green
     v in setOf("?", "no-dns", "unreachable", "unavailable", "refused", "skipped", "tor-missing", "") ||
             v.startsWith("error") || v.startsWith("tls-error") || v.startsWith("bad-reply") -> Amber
@@ -98,14 +99,29 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.getBooleanExtra("autoscan", false) == true) vm.autoscanPending = true
         setContent {
             val dark = isSystemInDarkTheme()
             val scheme = if (dark) darkColorScheme(primary = Color(0xFF8AB4F8)) else lightColorScheme(primary = Blue)
             MaterialTheme(colorScheme = scheme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    Main(vm, onOpen = { openReport(share = false) }, onShare = { openReport(share = true) })
+                    Main(vm, onOpen = { openReport(share = false) }, onShare = { openReport(share = true) }, onCard = { shareCard(it) })
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra("autoscan", false)) vm.startScan()
+    }
+
+    private fun shareCard(showNetwork: Boolean) {
+        lifecycleScope.launch {
+            val f = vm.renderCardFile(showNetwork) ?: return@launch
+            val uri = FileProvider.getUriForFile(this@MainActivity, "org.tunnelmoth.filterscope.files", f)
+            val intent = Intent(Intent.ACTION_SEND).apply { type = "image/png"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            startActivity(Intent.createChooser(intent, S.share))
         }
     }
 
@@ -132,33 +148,42 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit) {
+fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit, onCard: (Boolean) -> Unit) {
     val st by vm.state.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
+    var askCard by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    if (askCard) androidx.compose.material3.AlertDialog(onDismissRequest = { askCard = false }, title = { Text(S.includeNet) },
+        confirmButton = { TextButton(onClick = { askCard = false; onCard(true) }) { Text(S.yes) } },
+        dismissButton = { TextButton(onClick = { askCard = false; onCard(false) }) { Text(S.no) } }, text = {})
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("filterscope ${st.version}", fontWeight = FontWeight.Bold) }, actions = {
-            TextButton(onClick = onShare, enabled = st.reportJson != null) { Text("Share") }
-            TextButton(onClick = onOpen, enabled = st.reportJson != null) { Text("Open report") }
+            TextButton(onClick = { askCard = true }, enabled = st.reportJson != null) { Text(S.card) }
+            TextButton(onClick = onShare, enabled = st.reportJson != null) { Text(S.share) }
+            TextButton(onClick = onOpen, enabled = st.reportJson != null) { Text(S.openReport) }
         })
     }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
+            st.update?.let { (v, url) ->
+                Text(S.update(v), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth().background(Blue).clickable { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }.padding(10.dp))
+            }
             // controls
             Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(value = st.label, onValueChange = vm::setLabel, label = { Text("label") },
+                OutlinedTextField(value = st.label, onValueChange = vm::setLabel, label = { Text(S.label) },
                     singleLine = true, modifier = Modifier.weight(1f), enabled = !st.scanning)
                 Spacer(Modifier.width(8.dp))
                 ProfilePicker(st.profile, st.profiles, enabled = !st.scanning, onPick = vm::setProfile)
                 Spacer(Modifier.width(8.dp))
-                if (st.scanning) OutlinedButton(onClick = vm::stopScan) { Text("Stop") }
-                else Button(onClick = vm::startScan, enabled = st.ready) { Text("Scan") }
+                if (st.scanning) OutlinedButton(onClick = vm::stopScan) { Text(S.stop) }
+                else Button(onClick = vm::startScan, enabled = st.ready) { Text(S.scan) }
             }
             var showDomains by remember { mutableStateOf(false) }
             Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { showDomains = !showDomains }) { Text(if (showDomains) "▴ own domains" else "▾ own domains" + (if (st.domains.isNotBlank()) " (set)" else "")) }
+                TextButton(onClick = { showDomains = !showDomains }) { Text((if (showDomains) "▴ " else "▾ ") + S.ownDomains + (if (st.domains.isNotBlank()) " " + S.set else "")) }
             }
-            if (showDomains) OutlinedTextField(value = st.domains, onValueChange = vm::setDomains, label = { Text("extra domains, comma or newline separated") },
+            if (showDomains) OutlinedTextField(value = st.domains, onValueChange = vm::setDomains, label = { Text(S.ownDomainsHint) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), minLines = 2, maxLines = 4, enabled = !st.scanning)
             LinearProgressIndicator(progress = { st.progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
             Text(st.status + (st.error?.let { "  ·  $it" } ?: ""), color = if (st.error != null) Red else Color.Gray,
@@ -175,22 +200,22 @@ fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit) {
                         if (st.netLine.isNotEmpty()) Text(st.netLine, fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             when {
-                                st.scanning -> "scanning…"
-                                st.score < 0 -> "press Scan"
-                                else -> "${st.level.uppercase()} filtering — ${st.findings.count { it.second == "r" }} signals — confidence ${st.confidence}"
+                                st.scanning -> S.scanning
+                                st.score < 0 -> S.pressScan
+                                else -> S.verdict(st.level, st.findings.count { it.second == "r" }, st.confidence)
                             }, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                             color = if (st.score >= 0) levelColor(st.level) else MaterialTheme.colorScheme.onSurface)
                         Text(st.summary, fontSize = 13.sp, maxLines = if (expanded) 20 else 3, overflow = TextOverflow.Ellipsis)
                         if (st.techniques.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             st.techniques.forEach { (t, l) -> AssistChip(onClick = {}, label = { Text(t, fontSize = 11.sp, color = Red) }) }
                         }
-                        if (st.vendor.isNotEmpty()) Text("vendor signature: ${st.vendor}", fontSize = 12.sp, color = Color(0xFF8E24AA))
+                        if (st.vendor.isNotEmpty()) Text("${S.vendor}: ${st.vendor}", fontSize = 12.sp, color = Color(0xFF8E24AA))
                     }
                 }
             }
 
             TabRow(selectedTabIndex = tab) {
-                listOf("Overview", "Sites", "Egress", "History").forEachIndexed { i, t ->
+                listOf(S.tabOverview, S.tabSites, S.tabEgress, S.tabHistory).forEachIndexed { i, t ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) })
                 }
             }
@@ -239,12 +264,12 @@ fun Overview(st: UiState, onCompare: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(12.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("findings", fontWeight = FontWeight.Bold)
+                Text(S.findings, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onCompare, enabled = st.reportJson != null) { Text("Compare with previous") }
+                TextButton(onClick = onCompare, enabled = st.reportJson != null) { Text(S.comparePrev) }
             }
         }
-        if (st.findings.isEmpty()) item { Text(if (st.scanning) "…" else "no findings yet", color = Color.Gray) }
+        if (st.findings.isEmpty()) item { Text(if (st.scanning) "…" else S.noFindings, color = Color.Gray) }
         items(st.findings) { (t, tag) -> Text(t, color = tagColor(tag, MaterialTheme.colorScheme.onSurface), fontSize = 13.sp, modifier = Modifier.padding(vertical = 2.dp)) }
         if (st.advice.isNotEmpty()) {
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
@@ -267,12 +292,12 @@ fun Sites(st: UiState) {
                 it.dns.contains(filter, true) || it.sni.contains(filter, true) || it.block.contains(filter, true) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = filter, onValueChange = { filter = it }, label = { Text("filter") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = filter, onValueChange = { filter = it }, label = { Text(S.filter) }, singleLine = true, modifier = Modifier.weight(1f))
             Checkbox(checked = flaggedOnly, onCheckedChange = { flaggedOnly = it })
-            Text("affected only", fontSize = 12.sp)
+            Text(S.affectedOnly, fontSize = 12.sp)
         }
-        Text("${rows.size} shown · ${st.sites.count { it.flagged }} affected" +
-                (if (st.scanning && st.sites.size < st.sitesExpected) " · pending" else ""),
+        Text("${rows.size} ${S.shown} · ${st.sites.count { it.flagged }} ${S.affected}" +
+                (if (st.scanning && st.sites.size < st.sitesExpected) " · ${S.pending}" else ""),
             fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 12.dp))
         LazyColumn(Modifier.fillMaxSize()) {
             items(rows, key = { it.domain }) { r ->
@@ -312,7 +337,7 @@ fun Probes(st: UiState) {
             }
             HorizontalDivider()
         }
-        if (st.probes.isEmpty()) item { Text(if (st.scanning) "…" else "no probes yet", color = Color.Gray, modifier = Modifier.padding(12.dp)) }
+        if (st.probes.isEmpty()) item { Text(if (st.scanning) "…" else S.noProbes, color = Color.Gray, modifier = Modifier.padding(12.dp)) }
     }
 }
 
@@ -327,12 +352,12 @@ fun History(st: UiState) {
                         color = if (h.changes.startsWith("+")) Red else if (h.changes.startsWith("−")) Green else Color.Gray)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    if (h.score.isNotEmpty()) Text("score ${h.score}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text("${h.blocks} blocks", fontSize = 11.sp, color = Color.Gray)
+                    if (h.score.isNotEmpty()) Text("${S.score} ${h.score}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${h.blocks} ${S.blocks}", fontSize = 11.sp, color = Color.Gray)
                 }
             }
             HorizontalDivider()
         }
-        if (st.history.isEmpty()) item { Text("no history yet — run a scan", color = Color.Gray, modifier = Modifier.padding(12.dp)) }
+        if (st.history.isEmpty()) item { Text(S.noHistory, color = Color.Gray, modifier = Modifier.padding(12.dp)) }
     }
 }

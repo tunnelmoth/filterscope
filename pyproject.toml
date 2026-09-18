@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "filterscope"
-version = "3.3.114"
+version = "3.4.116"
 description = "Measure network filtering/censorship legitimately — DNS, SNI-DPI, block pages, ports, UDP/QUIC, encrypted DNS, Tor — with your own traffic and a clean allowlist."
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -27,6 +27,7 @@ dependencies = [
   "cryptography>=41",
   "rich>=13",
   "textual>=0.80",
+  "pillow>=10",
 ]
 
 [project.optional-dependencies]

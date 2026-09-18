@@ -297,3 +297,35 @@ def test_blockpage_generic_wording_over_https_not_counted(monkeypatch):
     assert core.blockpage_test("pinterest.com", 5)["verdict"] == "ok"
     assert core.blockpage_test("discord.com", 5)["verdict"] == "BLOCKPAGE"
     assert core.blockpage_test("school.example", 5)["verdict"] == "BLOCKPAGE"
+
+
+def test_i18n_parity_and_format():
+    from filterscope import i18n
+    en, tr = i18n.STRINGS["en"], i18n.STRINGS["tr"]
+    assert set(en) == set(tr), set(en) ^ set(tr)
+    import re
+    for k in en:
+        assert set(re.findall(r"{(\w+)}", en[k])) == set(re.findall(r"{(\w+)}", tr[k])), k
+    i18n.set_lang("tr"); assert i18n.t("level.heavy") == "ağır"; assert "{" not in i18n.t("ui.update", latest="1.0")
+    i18n.set_lang("en"); assert i18n.t("nonexistent.key") == "nonexistent.key"
+    for tech in analysis.TECHNIQUE_INFO:
+        assert i18n.t(f"tech.{tech}") != f"tech.{tech}", tech
+
+
+def test_throttle_verdict(monkeypatch):
+    seq = iter([{"mbps": 40.0, "bytes": 4_000_000, "error": ""}, {"mbps": 3.0, "bytes": 1_000_000, "error": ""},
+                {"mbps": 0.0, "bytes": 0, "error": "ConnectionError"}])
+    monkeypatch.setattr(core, "throughput_one", lambda url, mbytes=4, seconds=8: next(seq))
+    r = core.throttle_test({"a": "u", "b": "u", "c": "u"})
+    assert r["verdict"] == "THROTTLED" and r["throttled"] == ["b"] and r["best_mbps"] == 40.0
+    rep = _report(); rep["throttle"] = r
+    assert "throttling b" in core.flagged(rep) and "throttling" in analysis.techniques(rep)
+
+
+def test_check_update_parsing(monkeypatch):
+    class R:
+        def raise_for_status(self): pass
+        def json(self): return {"tag_name": "v99.0.1"}
+    monkeypatch.setattr(core.requests, "get", lambda *a, **k: R())
+    u = core.check_update(); assert u["newer"] and u["latest"] == "99.0.1"
+    assert core._vtuple("3.3.114") < core._vtuple("3.4.0")

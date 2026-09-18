@@ -12,15 +12,18 @@ _cancel = False
 _lock = threading.Lock()
 
 
-def init(files_dir: str):
+def init(files_dir: str, lang: str = ""):
     """Point HOME at the app's private files dir so ~/.filterscope lands there."""
     os.environ["HOME"] = files_dir
+    if lang:
+        os.environ["FILTERSCOPE_LANG"] = lang
     os.makedirs(files_dir, exist_ok=True)
     for m in list(sys.modules):
         if m == "filterscope" or m.startswith("filterscope."):
             del sys.modules[m]
     import filterscope  # noqa: F401  (re-import with the new HOME)
-    from filterscope import __version__
+    from filterscope import __version__, i18n
+    i18n.set_lang(lang or None)
     return __version__
 
 
@@ -104,3 +107,35 @@ def diff_prev(report_json: str) -> str:
     d = analysis.diff(older, rep)
     d["old_ts"] = older["ts"]
     return json.dumps(d, ensure_ascii=False)
+
+
+def check_update() -> str:
+    from filterscope import core
+    return json.dumps(core.check_update(timeout=6))
+
+
+def render_card(report_json: str, path: str, show_network: bool = True) -> str:
+    from filterscope.card import render_card as rc
+    return rc(json.loads(report_json), path, show_network=show_network)
+
+
+def advice(report_json: str) -> str:
+    """Localized advice lines [[color, text], ...] (VPN block then tunnel block)."""
+    from filterscope import core
+    rep = json.loads(report_json)
+    return json.dumps({"vpn": core.vpn_advice(rep), "tunnel": core.tunnel_advice(rep)}, ensure_ascii=False)
+
+
+def last_summary() -> str:
+    """For the home-screen widget: latest stored report's score/level/ts/label."""
+    from filterscope import config
+    files = config.list_reports()
+    if not files:
+        return json.dumps(None)
+    try:
+        r = config.load_report(files[-1])
+        an = r.get("analysis") or {}
+        return json.dumps({"score": an.get("score"), "level": an.get("level"), "ts": r.get("ts", ""),
+                           "net": r.get("net", {}).get("label") or r.get("net", {}).get("ssid") or ""})
+    except Exception:
+        return json.dumps(None)

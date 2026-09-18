@@ -265,3 +265,35 @@ def test_safe_name():
     assert core.safe_name("  .hidden/../x  ") == "hidden_.._x"
     assert core.safe_name("") == "scan" and core.safe_name("///", "id") == "id"
     assert "/" not in core.safe_name("a/b\\c") and len(core.safe_name("x" * 200)) <= 48
+
+
+def test_site_list_sanity():
+    import re
+    doms = list(core.SITES.values())
+    assert len(doms) >= 200
+    assert len(doms) == len(set(doms)), "duplicate domains"
+    host = re.compile(r"^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
+    bad = [d for d in doms if not host.match(d)]
+    assert not bad, bad
+    assert all("/" in k and k.split("/")[0] for k in core.SITES)
+    from filterscope import config
+    cats = set(core.categories())
+    for name, prof in config.PROFILES.items():
+        unknown = set(prof.get("categories", [])) - cats
+        assert not unknown, (name, unknown)
+
+
+def test_blockpage_generic_wording_over_https_not_counted(monkeypatch):
+    class R:
+        def __init__(self, url, text): self.url, self.text = url, text
+    def fake_get(url, **kw):
+        if "france24" in url: return R("https://www.france24.com/", "<h1>Access Denied</h1> reference #18")
+        if "pinterest" in url: return R("https://www.pinterest.com/", "footer: 5651 sayili kanun temsilcisi")
+        if "discord" in url: return R("http://discord.com/", "Bu siteye erişim engellenmiştir 5651")
+        if "school" in url: return R("https://filter.school.local/block?u=x", "Web Page Blocked - FortiGuard")
+        return R("http://ok.example/", "hello")
+    monkeypatch.setattr(core.requests, "get", fake_get)
+    assert core.blockpage_test("france24.com", 5)["verdict"] == "ok"
+    assert core.blockpage_test("pinterest.com", 5)["verdict"] == "ok"
+    assert core.blockpage_test("discord.com", 5)["verdict"] == "BLOCKPAGE"
+    assert core.blockpage_test("school.example", 5)["verdict"] == "BLOCKPAGE"

@@ -20,16 +20,16 @@
   <div class="bg" aria-hidden="true"></div><div class="fade" aria-hidden="true"></div>
   <div class="lang"><button id="lang-en" class="on" type="button">EN</button><button id="lang-tr" type="button">TR</button></div>
   <div class="wrap"><div class="txt">
-    <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.2.112 · stable</span></div>
+    <div class="brand"><img src="assets/icon.png" alt=""> filterscope <span class="pill" id="ver">v3.3.114 · stable</span></div>
     <h1 data-en>See what your network <span>blocks</span>.</h1>
     <h1 data-tr>Ağının neyi <span>engellediğini</span> gör.</h1>
     <p class="lead" data-en>One click. filterscope measures the filtering on the network you are on — DNS tampering, TLS server-name inspection, HTTPS interception, blocked ports and protocols — using only <b>your own traffic</b> and a <b>clean list of well-known sites</b>. Then it tells you, in plain language, what is going on and what to do.</p>
     <p class="lead" data-tr>Tek tık. filterscope bağlı olduğun ağdaki filtrelemeyi ölçer — DNS kurcalama, TLS sunucu-adı denetimi (SNI-DPI), HTTPS'in kırılması, kapalı port ve protokoller — yalnızca <b>kendi trafiğinle</b> ve <b>temiz, tanınmış site listesiyle</b>. Sonra ne olduğunu ve ne yapabileceğini düz cümlelerle söyler.</p>
     <div class="cta" id="cta-row">
-      <a class="btn plat" data-os="windows" data-asset="filterscope-setup-" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>Windows</b><small>installer .exe</small></a>
-      <a class="btn plat" data-os="android" data-asset="filterscope-android-" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>Android</b><small>.apk</small></a>
-      <a class="btn plat" data-os="linux" data-asset="filterscope-gui-linux-x86_64" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-linux-x86_64"><b>Linux</b><small>x86_64</small></a>
-      <a class="btn plat" data-os="mac" data-asset="filterscope-gui-macos-arm64.app.zip" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-macos-arm64.app.zip"><b>macOS</b><small>Apple silicon</small></a>
+      <a class="btn plat" data-os="windows" data-asset="-Windows-Installer.exe" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>Windows</b><small>installer .exe</small></a>
+      <a class="btn plat" data-os="android" data-asset="-Android.apk" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>Android</b><small>.apk</small></a>
+      <a class="btn plat" data-os="linux" data-asset="-Linux-App" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>Linux</b><small>x86_64</small></a>
+      <a class="btn plat" data-os="mac" data-asset="-macOS-AppleSilicon.app.zip" href="https://github.com/tunnelmoth/filterscope/releases/latest"><b>macOS</b><small>Apple silicon</small></a>
     </div>
     <div class="cta2">
       <a href="#downloads"><span data-en>all downloads &amp; checksums</span><span data-tr>tüm indirmeler ve sağlama toplamları</span></a> ·
@@ -48,7 +48,7 @@
   <p class="sub" data-tr>Her tarama 0-100 arası bir skor, ağın kullandığı teknikler, filtre cihazı imza bırakıyorsa üretici tahmini ve etkilenen site/protokollerle biter — bağlantı dalgalanması yanlış suçlamaya dönüşmesin diye her bulgu bir kez daha doğrulanır.</p>
   <div class="verdict">  <b>17/100</b>  █████░░░░░░░░░░░░░░░░░░░░░░░░░   <b>LIGHT</b>   confidence high
 
-  school shows light filtering (score 17/100). 4 of 58 sites are affected,
+  school shows light filtering (score 17/100). 4 of 279 sites are affected,
   mostly chat (1/1), vpn-info (1/1), vpn-api (2/5). Techniques: TLS
   server-name inspection, HTTP block page. The filter is application-layer
   only; SNI-hiding tunnels and ECH get through.
@@ -59,8 +59,8 @@
 
 <section id="what">
   <h2 data-en>What it measures</h2><h2 data-tr>Ne ölçer</h2>
-  <p class="sub" data-en>Sixteen probes, all against public, well-known endpoints. Nothing inappropriate is ever requested — that is a deliberate design choice, so you can run it anywhere without a second thought.</p>
-  <p class="sub" data-tr>On altı ölçüm, hepsi herkese açık, tanınmış uç noktalara. Uygunsuz hiçbir şey istenmez — bilinçli bir tasarım kararı; her yerde gönül rahatlığıyla çalıştırabilirsin.</p>
+  <p class="sub" data-en>Sixteen probe types over 270+ public, well-known sites — games, streaming, social, messaging, news, education, AI, dev, VPN, web proxies and more. Nothing inappropriate is ever requested — that is a deliberate design choice, so you can run it anywhere without a second thought.</p>
+  <p class="sub" data-tr>270+ herkese açık, tanınmış site üzerinde on altı ölçüm türü — oyun, yayın, sosyal, mesajlaşma, haber, eğitim, AI, geliştirici, VPN, web proxy ve fazlası. Uygunsuz hiçbir şey istenmez — bilinçli bir tasarım kararı; her yerde gönül rahatlığıyla çalıştırabilirsin.</p>
   <div class="grid">
     <div class="card"><span class="k">SNI-DPI</span><h3 data-en>TLS server-name inspection</h3><h3 data-tr>TLS sunucu-adı denetimi</h3><p data-en>Same IP, real name vs. harmless name. Reset only with the real name = the network reads your ClientHello. It even tells whether the reset was injected by a middlebox (faster than a round trip).</p><p data-tr>Aynı IP, gerçek ad ile zararsız ad. Sadece gerçek adda kopuyorsa ağ ClientHello'nu okuyor demektir. Kopuşun yol üstündeki bir cihazdan enjekte edilip edilmediğini bile söyler (gidiş-dönüşten hızlı).</p></div>
     <div class="card"><span class="k">TLS-MITM</span><h3 data-en>HTTPS interception</h3><h3 data-tr>HTTPS'in kırılması</h3><p data-en>Verified chains for four big sites. A private issuer means the network decrypts HTTPS with its own certificate — every login readable by the operator.</p><p data-tr>Dört büyük site için doğrulanmış sertifika zinciri. Özel bir imzalayıcı çıkarsa ağ HTTPS'i kendi sertifikasıyla çözüyor — her giriş işletmeci tarafından okunabilir.</p></div>
@@ -74,7 +74,7 @@
 <section id="how">
   <h2 data-en>How it works</h2><h2 data-tr>Nasıl çalışır</h2>
   <div class="steps">
-    <div class="step"><h3 data-en>Scan</h3><h3 data-tr>Tara</h3><p data-en>Press the button. 58 well-known sites and a dozen protocol probes run in parallel; a full scan takes about 30 seconds.</p><p data-tr>Düğmeye bas. 58 tanınmış site ve bir düzine protokol sondası paralel koşar; tam tarama yaklaşık 30 saniye.</p></div>
+    <div class="step"><h3 data-en>Scan</h3><h3 data-tr>Tara</h3><p data-en>Press the button. 270+ well-known sites in 27 categories and a dozen protocol probes run in parallel; a full scan takes about a minute. Add your own domains too.</p><p data-tr>Düğmeye bas. 27 kategoride 270+ tanınmış site ve bir düzine protokol sondası paralel koşar; tam tarama yaklaşık bir dakika. Kendi domainlerini de ekleyebilirsin.</p></div>
     <div class="step"><h3 data-en>Read the verdict</h3><h3 data-tr>Hükmü oku</h3><p data-en>Score, level, techniques, vendor signature, affected categories, and what it means for your VPN and your browser.</p><p data-tr>Skor, seviye, teknikler, üretici imzası, etkilenen kategoriler ve VPN'in ile tarayıcın için ne anlama geldiği.</p></div>
     <div class="step"><h3 data-en>Keep the evidence</h3><h3 data-tr>Kanıtı sakla</h3><p data-en>A self-contained HTML report, JSON for the record, an anonymized version to share, and a history that shows when a block was added or lifted. Scan again on mobile data and diff the two.</p><p data-tr>Kendi başına açılan HTML rapor, kayıt için JSON, paylaşmak için anonim sürüm ve engelin ne zaman eklenip kaldırıldığını gösteren geçmiş. Mobil veride tekrar tara, ikisini karşılaştır.</p></div>
   </div>
@@ -92,15 +92,15 @@
 
 <section id="downloads">
   <h2 data-en>Downloads</h2><h2 data-tr>İndir</h2>
-  <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.2.112</b> (stable) · <a id="sums" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
+  <p class="sub"><span data-en>Latest release:</span><span data-tr>Son sürüm:</span> <b id="ver2">v3.3.114</b> (stable) · <a id="sums" data-asset="SHA256SUMS.txt" href="https://github.com/tunnelmoth/filterscope/releases/latest">SHA256SUMS.txt</a> · <a href="https://github.com/tunnelmoth/filterscope/releases">all releases</a></p>
   <div class="tablewrap"><table id="dl">
     <thead><tr><th data-en>Platform</th><th data-tr>Platform</th><th data-en>File</th><th data-tr>Dosya</th><th data-en>Notes</th><th data-tr>Not</th></tr></thead>
     <tbody>
-      <tr><td>Windows</td><td><a class="dl" data-asset="filterscope-setup-" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-setup-&lt;version&gt;.exe</a></td><td data-en>Installer. Start-menu shortcut, no admin needed. SmartScreen will warn (unsigned) — “More info → Run anyway”.</td><td data-tr>Kurulum. Başlat menüsü kısayolu, yönetici gerekmez. SmartScreen uyarır (imzasız) — “Daha fazla bilgi → Yine de çalıştır”.</td></tr>
-      <tr><td>Windows <span class="mono">portable</span></td><td><a class="dl" data-asset="filterscope-gui-windows-x86_64.exe" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-windows-x86_64.exe">filterscope-gui-windows-x86_64.exe</a></td><td data-en>Single file, double-click. Terminal build: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-windows-x86_64.exe">filterscope-windows-x86_64.exe</a></td><td data-tr>Tek dosya, çift tık. Terminal sürümü: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-windows-x86_64.exe">filterscope-windows-x86_64.exe</a></td></tr>
-      <tr><td>Android</td><td><a class="dl" data-asset="filterscope-android-" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-android-&lt;version&gt;.apk</a></td><td data-en>Android 7+, 64-bit. Sideload: allow “unknown sources” for your browser once.</td><td data-tr>Android 7+, 64-bit. Elle kurulum: tarayıcın için “bilinmeyen kaynaklar”a bir kez izin ver.</td></tr>
-      <tr><td>Linux</td><td><a class="dl" data-asset="filterscope-gui-linux-x86_64" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-linux-x86_64">filterscope-gui-linux-x86_64</a></td><td data-en><span class="mono">chmod +x</span> then run. Terminal build: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-linux-x86_64">filterscope-linux-x86_64</a></td><td data-tr><span class="mono">chmod +x</span> sonra çalıştır. Terminal sürümü: <a href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-linux-x86_64">filterscope-linux-x86_64</a></td></tr>
-      <tr><td>macOS (Apple silicon)</td><td><a class="dl" data-asset="filterscope-gui-macos-arm64.app.zip" href="https://github.com/tunnelmoth/filterscope/releases/latest/download/filterscope-gui-macos-arm64.app.zip">filterscope-gui-macos-arm64.app.zip</a></td><td data-en>Unzip, right-click → Open the first time (unsigned). Intel Macs: Python install below.</td><td data-tr>Aç, ilk seferde sağ tık → Aç (imzasız). Intel Mac: aşağıdaki Python kurulumu.</td></tr>
+      <tr><td>Windows</td><td><a class="dl" data-asset="-Windows-Installer.exe" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-&lt;version&gt;-Windows-Installer.exe</a></td><td data-en>Installer. Start-menu shortcut, no admin needed. SmartScreen will warn (unsigned) — “More info → Run anyway”.</td><td data-tr>Kurulum. Başlat menüsü kısayolu, yönetici gerekmez. SmartScreen uyarır (imzasız) — “Daha fazla bilgi → Yine de çalıştır”.</td></tr>
+      <tr><td>Windows <span class="mono">portable</span></td><td><a class="dl" data-asset="-Windows-Portable.exe" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-&lt;version&gt;-Windows-Portable.exe</a></td><td data-en>Single file, double-click. Terminal build: <a data-asset="-Windows-Terminal.exe" href="https://github.com/tunnelmoth/filterscope/releases/latest">…-Windows-Terminal.exe</a></td><td data-tr>Tek dosya, çift tık. Terminal sürümü: <a data-asset="-Windows-Terminal.exe" href="https://github.com/tunnelmoth/filterscope/releases/latest">…-Windows-Terminal.exe</a></td></tr>
+      <tr><td>Android</td><td><a class="dl" data-asset="-Android.apk" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-&lt;version&gt;-Android.apk</a></td><td data-en>Android 7+, 64-bit. Sideload: allow “unknown sources” for your browser once.</td><td data-tr>Android 7+, 64-bit. Elle kurulum: tarayıcın için “bilinmeyen kaynaklar”a bir kez izin ver.</td></tr>
+      <tr><td>Linux</td><td><a class="dl" data-asset="-Linux-App" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-&lt;version&gt;-Linux-App</a></td><td data-en><span class="mono">chmod +x</span> then run. Terminal build: <a data-asset="-Linux-Terminal" href="https://github.com/tunnelmoth/filterscope/releases/latest">…-Linux-Terminal</a></td><td data-tr><span class="mono">chmod +x</span> sonra çalıştır. Terminal sürümü: <a data-asset="-Linux-Terminal" href="https://github.com/tunnelmoth/filterscope/releases/latest">…-Linux-Terminal</a></td></tr>
+      <tr><td>macOS (Apple silicon)</td><td><a class="dl" data-asset="-macOS-AppleSilicon.app.zip" href="https://github.com/tunnelmoth/filterscope/releases/latest">filterscope-&lt;version&gt;-macOS-AppleSilicon.app.zip</a></td><td data-en>Unzip, right-click → Open the first time (unsigned). Intel Macs: Python install below.</td><td data-tr>Aç, ilk seferde sağ tık → Aç (imzasız). Intel Mac: aşağıdaki Python kurulumu.</td></tr>
       <tr><td>Python 3.10+</td><td class="mono">pipx install git+https://github.com/tunnelmoth/filterscope</td><td data-en>Any OS. <span class="mono">filterscope</span> (TUI), <span class="mono">filterscope gui</span>, <span class="mono">filterscope scan --html report.html</span></td><td data-tr>Her OS. <span class="mono">filterscope</span> (TUI), <span class="mono">filterscope gui</span>, <span class="mono">filterscope scan --html rapor.html</span></td></tr>
     </tbody>
   </table></div>

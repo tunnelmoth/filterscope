@@ -114,7 +114,8 @@ class App:
         ttk.Label(tb, text="profile").pack(side="left")
         cb = ttk.Combobox(tb, textvariable=self._profile, values=sorted(config.PROFILES), width=8, state="readonly")
         cb.pack(side="left", padx=(4, 12))
-        ttk.Checkbutton(tb, text="Tor test", variable=self._tor).pack(side="left", padx=(0, 12))
+        ttk.Checkbutton(tb, text="Tor test", variable=self._tor).pack(side="left", padx=(0, 8))
+        ttk.Button(tb, text="Sites…", command=self.sites_dialog).pack(side="left", padx=(0, 12))
         ttk.Button(tb, text="Folder", width=7, command=lambda: open_path(config.DIR if os.path.isdir(config.DIR) else os.getcwd())).pack(side="right")
         ttk.Button(tb, text="Compare", width=8, command=self.compare_prev).pack(side="right", padx=4)
         ttk.Button(tb, text="JSON…", width=7, command=self.save_json).pack(side="right", padx=4)
@@ -283,6 +284,59 @@ class App:
                       fill=MUTED if blank else LEVEL_COLOR[level])
         c.create_text(65, 84, text="" if blank else level.upper(), font=("TkDefaultFont", 9, "bold"),
                       fill=MUTED if blank else LEVEL_COLOR[level])
+
+    # ── sites dialog: categories + custom domains (saved to ~/.filterscope/config.json) ──
+    def sites_dialog(self):
+        cfg = config.load()
+        win = tk.Toplevel(self.root)
+        win.title("Sites to test")
+        win.transient(self.root)
+        win.geometry("760x520")
+        win.configure(bg=BG)
+        left = ttk.Labelframe(win, text="categories (none checked = all)", padding=8)
+        left.pack(side="left", fill="both", expand=True, padx=(12, 6), pady=12)
+        cats = core.categories()
+        counts = {c: sum(1 for k in core.SITES if k.split("/")[0] == c) for c in cats}
+        chosen = set(cfg.get("categories") or [])
+        vars_ = {}
+        grid = ttk.Frame(left)
+        grid.pack(fill="both", expand=True)
+        for i, c in enumerate(cats):
+            v = tk.BooleanVar(value=(c in chosen))
+            vars_[c] = v
+            ttk.Checkbutton(grid, text=f"{c} ({counts[c]})", variable=v).grid(row=i % 14, column=i // 14, sticky="w", padx=4, pady=1)
+        bb = ttk.Frame(left)
+        bb.pack(fill="x", pady=(8, 0))
+        ttk.Button(bb, text="all", command=lambda: [v.set(False) for v in vars_.values()]).pack(side="left")
+        ttk.Button(bb, text="school preset", command=lambda: [v.set(c in config.PROFILES["school"]["categories"]) for c, v in vars_.items()]).pack(side="left", padx=6)
+        ttk.Label(bb, text=f"{len(core.SITES)} sites total", foreground=MUTED).pack(side="right")
+        right = ttk.Labelframe(win, text="your own domains (one per line, e.g. example.org)", padding=8)
+        right.pack(side="left", fill="both", expand=True, padx=(6, 12), pady=12)
+        txt = tk.Text(right, bg=CARD, fg=FG, height=18, font="TkFixedFont", highlightthickness=0, borderwidth=1, relief="solid")
+        txt.pack(fill="both", expand=True)
+        txt.insert("1.0", "\n".join(cfg.get("domains") or []))
+        ttk.Label(right, text="Added under category 'custom'. Only test domains you have a reason to test.",
+                  foreground=MUTED, wraplength=320, justify="left").pack(anchor="w", pady=(6, 0))
+        btns = ttk.Frame(right)
+        btns.pack(fill="x", pady=(8, 0))
+
+        def save():
+            import re as _re
+            doms = []
+            for line in txt.get("1.0", "end").splitlines():
+                d = line.strip().lower().strip(".")
+                d = _re.sub(r"^https?://", "", d).split("/")[0]
+                if d and _re.match(r"^([a-z0-9-]+\.)+[a-z]{2,}$", d) and d not in doms:
+                    doms.append(d)
+            cfg2 = config.load()
+            cfg2["categories"] = [c for c, v in vars_.items() if v.get()]
+            cfg2["domains"] = doms
+            config.save(cfg2)
+            n = len(core.select_sites(cfg2["categories"], doms))
+            self._status.set(f"sites saved: {n} to test ({len(doms)} custom)")
+            win.destroy()
+        ttk.Button(btns, text="Save", style="Accent.TButton", command=save).pack(side="right")
+        ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="right", padx=6)
 
     # ── scanning ─────────────────────────────────────────────────────────────
     def build_opts(self) -> scan.ScanOptions:

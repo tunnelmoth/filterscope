@@ -41,6 +41,7 @@ data class UiState(
     val netLine: String = "",
     val label: String = "",
     val profile: String = "full",
+    val domains: String = "",
     val profiles: List<String> = listOf("full", "quick", "school", "isp", "vpn"),
     val score: Int = -1,
     val level: String = "",
@@ -73,7 +74,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 val files = getApplication<Application>().filesDir.absolutePath
                 val version = bridge.callAttr("init", files).toString()
                 val profiles = JSONArray(bridge.callAttr("profiles").toString()).let { a -> List(a.length()) { a.getString(it) } }
-                _state.update { it.copy(ready = true, version = version, profiles = profiles) }
+                val saved = try { getApplication<Application>().getSharedPreferences("fs", Context.MODE_PRIVATE).getString("domains", "") ?: "" } catch (_: Exception) { "" }
+                _state.update { it.copy(ready = true, version = version, profiles = profiles, domains = saved) }
                 loadHistory()
             } catch (e: Exception) {
                 _state.update { it.copy(error = "engine failed to start: ${e.message}") }
@@ -82,6 +84,10 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setLabel(v: String) = _state.update { it.copy(label = v) }
+    fun setDomains(v: String) {
+        _state.update { it.copy(domains = v) }
+        try { getApplication<Application>().getSharedPreferences("fs", Context.MODE_PRIVATE).edit().putString("domains", v).apply() } catch (_: Exception) {}
+    }
     fun setProfile(v: String) = _state.update { it.copy(profile = v) }
 
     private fun netHints() {
@@ -120,7 +126,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 val listener = object : ScanListener {
                     override fun onEvent(kind: String, payload: String) = handle(kind, payload)
                 }
-                val json = bridge.callAttr("start", s.profile, s.label, listener).toString()
+                val json = bridge.callAttr("start", s.profile, s.label, listener, s.domains).toString()
                 finish(json)
             } catch (e: Exception) {
                 _state.update { it.copy(scanning = false, status = "failed", error = e.message ?: e.toString()) }

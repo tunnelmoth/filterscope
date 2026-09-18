@@ -16,8 +16,8 @@
     var v=rel.tag_name||"";document.getElementById('ver').textContent=v;document.getElementById('ver2').textContent=v;
     rel.assets.forEach(function(a){
       document.querySelectorAll('a[data-asset]').forEach(function(el){
-        var p=el.getAttribute('data-asset');
-        if(a.name===p||(p.slice(-1)==='-'&&a.name.indexOf(p)===0)){el.href=a.browser_download_url;el.textContent=a.name;}
+        var key=el.getAttribute('data-asset');
+        if(a.name.indexOf(key)!==-1){el.href=a.browser_download_url;if(el.classList.contains('dl'))el.textContent=a.name;}
       });
     });
   }).catch(function(){});

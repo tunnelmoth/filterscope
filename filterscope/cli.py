@@ -62,7 +62,7 @@ def add_scan_args(ap, tui=False):
     ap.add_argument("--domain", action="append", help="extra domain to test (repeatable)")
     ap.add_argument("--domains-file", help="file with one extra domain per line")
     ap.add_argument("--speed", action="store_true", help="also measure downstream throughput")
-    ap.add_argument("--workers", type=int, help="parallel probes (default 12)")
+    ap.add_argument("--workers", type=int, help="parallel probes (default 20)")
     if not tui:
         ap.add_argument("--json", help="write the full report to a JSON file")
         ap.add_argument("--anon-json", help="write an anonymized (shareable) report")

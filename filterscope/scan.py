@@ -57,7 +57,7 @@ class ScanOptions:
     blockpage: bool = True
     speed: bool = False
     verify: bool = True
-    workers: int = 12
+    workers: int = 20
 
     @classmethod
     def quick(cls, **kw):
@@ -77,7 +77,7 @@ class ScanOptions:
             tor=bool(prof.get("tor", cfg.get("tor", True))),
             categories=list(prof.get("categories") or cfg.get("categories") or []),
             domains=list(cfg.get("domains") or []), verify=bool(cfg.get("verify", True)),
-            workers=int(cfg.get("workers", 12)),
+            workers=int(cfg.get("workers", 20)),
             steps=tuple(s for s in ALL_STEPS if s not in steps_off),
         )
         for k, v in overrides.items():

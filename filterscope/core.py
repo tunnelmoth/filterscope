@@ -33,74 +33,110 @@ from . import __version__
 SCHEMA = 2
 
 # ── clean target list (category/name → domain). NO inappropriate content. ─────
+# Well-known, mainstream services only. Categories are the part before "/".
 SITES = {
-    "info/wikipedia": "wikipedia.org",
-    "digital-rights/eff": "eff.org",
-    "anonymity/tor": "torproject.org",
-    "messaging/signal": "signal.org",
-    "vpn-info/proton": "protonvpn.com",
-    "dev/github": "github.com",
-    "search/duckduckgo": "duckduckgo.com",
-    "social/reddit": "reddit.com",
-    "social/x": "x.com",
-    "chat/discord": "discord.com",
-    "messaging/telegram": "telegram.org",
-    "archive/archive.org": "archive.org",
-    "news/bbc": "bbc.com",
-    # AI tools (often blocked at schools)
-    "ai/chatgpt": "chatgpt.com",
-    "ai/openai": "openai.com",
-    "ai/claude": "claude.ai",
-    "ai/anthropic": "anthropic.com",
-    "ai/gemini": "gemini.google.com",
-    "ai/perplexity": "perplexity.ai",
-    "ai/copilot": "copilot.microsoft.com",
-    "ai/huggingface": "huggingface.co",
-    # VPN site/API (where the app logs in + pulls config; if blocked the VPN fails)
-    "vpn-api/proton": "api.protonvpn.ch",
-    "vpn-api/mullvad": "mullvad.net",
-    "vpn-api/nordvpn": "nordvpn.com",
-    "vpn-api/windscribe": "windscribe.com",
-    "vpn-api/airvpn": "airvpn.org",
-    # video / media (often blocked at schools)
-    "video/youtube": "youtube.com",
-    "video/tiktok": "tiktok.com",
-    "video/twitch": "twitch.tv",
-    "social/instagram": "instagram.com",
-    "social/facebook": "facebook.com",
-    "social/mastodon": "mastodon.social",
-    "social/bluesky": "bsky.app",
-    # news — international + independent (evidence of political filtering)
-    "news/reuters": "reuters.com",
-    "news/aljazeera": "aljazeera.com",
-    "news/dw": "dw.com",
-    "news/guardian": "theguardian.com",
-    "news-tr/bianet": "bianet.org",
-    "news-tr/diken": "diken.com.tr",
+    # information / reference
+    "info/wikipedia": "wikipedia.org", "info/wikimedia": "wikimedia.org", "info/britannica": "britannica.com",
+    "info/archive.org": "archive.org", "info/stackexchange": "stackexchange.com", "info/quora": "quora.com",
+    "info/imdb": "imdb.com", "info/weather": "weather.com", "info/speedtest": "speedtest.net", "info/fast": "fast.com",
+    # search
+    "search/google": "google.com", "search/bing": "bing.com", "search/duckduckgo": "duckduckgo.com",
+    "search/startpage": "startpage.com", "search/yandex": "yandex.com", "search/brave": "search.brave.com",
+    # digital rights / press freedom / civic
+    "rights/eff": "eff.org", "rights/amnesty": "amnesty.org", "rights/hrw": "hrw.org", "rights/accessnow": "accessnow.org",
+    "rights/rsf": "rsf.org", "rights/cpj": "cpj.org", "rights/freedomhouse": "freedomhouse.org", "rights/ooni": "ooni.org",
+    "rights/torproject": "torproject.org", "rights/wikileaks": "wikileaks.org", "rights/un": "un.org", "rights/icrc": "icrc.org",
+    # news — international
+    "news/bbc": "bbc.com", "news/reuters": "reuters.com", "news/apnews": "apnews.com", "news/aljazeera": "aljazeera.com",
+    "news/dw": "dw.com", "news/guardian": "theguardian.com", "news/nytimes": "nytimes.com", "news/cnn": "cnn.com",
+    "news/bloomberg": "bloomberg.com", "news/france24": "france24.com", "news/euronews": "euronews.com",
+    "news/washingtonpost": "washingtonpost.com", "news/economist": "economist.com", "news/voanews": "voanews.com",
+    # news — Turkey (mainstream + independent)
+    "news-tr/bbcturkce": "bbc.co.uk", "news-tr/bianet": "bianet.org", "news-tr/diken": "diken.com.tr", "news-tr/t24": "t24.com.tr", "news-tr/medyascope": "medyascope.tv",
+    "news-tr/sozcu": "sozcu.com.tr", "news-tr/cumhuriyet": "cumhuriyet.com.tr", "news-tr/birgun": "birgun.net",
+    "news-tr/evrensel": "evrensel.net", "news-tr/duvar": "gazeteduvar.com.tr", "news-tr/hurriyet": "hurriyet.com.tr", "news-tr/eksisozluk": "eksisozluk.com",
+    # social
+    "social/x": "x.com", "social/facebook": "facebook.com", "social/instagram": "instagram.com", "social/threads": "threads.net",
+    "social/reddit": "reddit.com", "social/mastodon": "mastodon.social", "social/bluesky": "bsky.app", "social/tumblr": "tumblr.com",
+    "social/pinterest": "pinterest.com", "social/linkedin": "linkedin.com", "social/snapchat": "snapchat.com", "social/vk": "vk.com",
+    "social/imgur": "imgur.com", "social/deviantart": "deviantart.com", "social/wattpad": "wattpad.com", "social/patreon": "patreon.com",
+    # chat / messaging / calls
+    "chat/discord": "discord.com", "chat/whatsapp": "whatsapp.com", "chat/messenger": "messenger.com", "chat/slack": "slack.com",
+    "chat/teams": "teams.microsoft.com", "chat/zoom": "zoom.us", "chat/meet": "meet.google.com", "chat/skype": "skype.com",
+    "messaging/telegram": "telegram.org", "messaging/signal": "signal.org", "messaging/viber": "viber.com",
+    "messaging/element": "element.io", "messaging/wire": "wire.com", "messaging/threema": "threema.ch", "messaging/session": "getsession.org",
+    # video / streaming / music
+    "video/youtube": "youtube.com", "video/tiktok": "tiktok.com", "video/twitch": "twitch.tv", "video/kick": "kick.com",
+    "video/vimeo": "vimeo.com", "video/dailymotion": "dailymotion.com", "video/netflix": "netflix.com", "video/primevideo": "primevideo.com",
+    "video/disneyplus": "disneyplus.com", "video/max": "max.com", "video/crunchyroll": "crunchyroll.com", "video/exxen": "exxen.com",
+    "video/blutv": "blutv.com", "music/spotify": "spotify.com", "music/soundcloud": "soundcloud.com", "music/deezer": "deezer.com",
+    "music/applemusic": "music.apple.com", "music/ytmusic": "music.youtube.com", "music/bandcamp": "bandcamp.com",
+    # games — stores, launchers, platforms
+    "games/steam": "store.steampowered.com", "games/steamcommunity": "steamcommunity.com", "games/epic": "epicgames.com",
+    "games/fortnite": "fortnite.com", "games/roblox": "roblox.com", "games/minecraft": "minecraft.net", "games/mojang": "mojang.com",
+    "games/riot": "riotgames.com", "games/leagueoflegends": "leagueoflegends.com", "games/valorant": "playvalorant.com",
+    "games/battlenet": "battle.net", "games/blizzard": "blizzard.com", "games/ea": "ea.com", "games/ubisoft": "ubisoft.com",
+    "games/rockstar": "rockstargames.com", "games/playstation": "playstation.com", "games/xbox": "xbox.com",
+    "games/nintendo": "nintendo.com", "games/gog": "gog.com", "games/itch": "itch.io", "games/gamejolt": "gamejolt.com",
+    "games/geforcenow": "nvidia.com", "games/chess": "chess.com", "games/lichess": "lichess.org", "games/pubg": "pubg.com",
+    "games/supercell": "supercell.com", "games/genshin": "hoyoverse.com", "games/curseforge": "curseforge.com",
+    "games/speedrun": "speedrun.com", "games/ign": "ign.com",
+    # AI tools
+    "ai/chatgpt": "chatgpt.com", "ai/openai": "openai.com", "ai/claude": "claude.ai", "ai/anthropic": "anthropic.com",
+    "ai/gemini": "gemini.google.com", "ai/perplexity": "perplexity.ai", "ai/copilot": "copilot.microsoft.com",
+    "ai/huggingface": "huggingface.co", "ai/mistral": "mistral.ai", "ai/deepseek": "deepseek.com", "ai/grok": "grok.com",
+    "ai/characterai": "character.ai", "ai/poe": "poe.com", "ai/midjourney": "midjourney.com", "ai/openrouter": "openrouter.ai",
+    # education / research / health
+    "education/khan": "khanacademy.org", "education/coursera": "coursera.org", "education/edx": "edx.org", "education/udemy": "udemy.com",
+    "education/duolingo": "duolingo.com", "education/quizlet": "quizlet.com", "education/brilliant": "brilliant.org",
+    "education/mitocw": "ocw.mit.edu", "education/arxiv": "arxiv.org", "education/scholar": "scholar.google.com",
+    "education/eba": "eba.gov.tr", "education/yok": "yok.gov.tr", "education/ted": "ted.com", "education/wolfram": "wolframalpha.com",
+    "health/who": "who.int", "health/nhs": "nhs.uk", "health/mayoclinic": "mayoclinic.org", "health/webmd": "webmd.com",
+    "health/cdc": "cdc.gov", "health/planned-parenthood": "plannedparenthood.org",
+    # religion (mainstream reference sites — a classic over-blocking category)
+    "religion/quran": "quran.com", "religion/bible": "bible.com", "religion/diyanet": "diyanet.gov.tr",
+    # dev / open source / hosting
+    "dev/github": "github.com", "dev/gitlab": "gitlab.com", "dev/codeberg": "codeberg.org", "dev/bitbucket": "bitbucket.org",
+    "dev/stackoverflow": "stackoverflow.com", "dev/npm": "npmjs.com", "dev/pypi": "pypi.org", "dev/dockerhub": "hub.docker.com",
+    "dev/replit": "replit.com", "dev/codepen": "codepen.io", "dev/vercel": "vercel.com", "dev/netlify": "netlify.com",
+    "dev/cloudflare": "cloudflare.com", "dev/sourceforge": "sourceforge.net", "dev/kernel": "kernel.org", "dev/debian": "debian.org",
+    "dev/archlinux": "archlinux.org", "dev/mozilla": "mozilla.org", "dev/brave": "brave.com", "dev/vscode": "code.visualstudio.com",
+    # cloud / storage / mail
+    "storage/drive": "drive.google.com", "storage/onedrive": "onedrive.live.com", "storage/icloud": "icloud.com", "storage/dropbox": "dropbox.com",
+    "storage/box": "box.com", "storage/mega": "mega.nz", "storage/wetransfer": "wetransfer.com", "storage/mediafire": "mediafire.com",
+    "storage/pcloud": "pcloud.com", "mail/gmail": "mail.google.com", "mail/outlook": "outlook.live.com", "mail/yahoo": "mail.yahoo.com",
+    "mail/proton": "proton.me", "mail/tuta": "tuta.com", "mail/yandex": "mail.yandex.com",
     # privacy tools
-    "privacy/proton": "proton.me",
-    "privacy/tutanota": "tuta.com",
-    "privacy/startpage": "startpage.com",
-    "privacy/privacyguides": "privacyguides.org",
-    # human rights (evidence of over-blocking)
-    "rights/amnesty": "amnesty.org",
-    "rights/hrw": "hrw.org",
-    "rights/accessnow": "accessnow.org",
-    # education / health (school filters often over-block these)
-    "education/khan": "khanacademy.org",
-    "education/coursera": "coursera.org",
-    "health/who": "who.int",
-    # censorship-circumvention tools
-    "circumvention/psiphon": "psiphon.ca",
-    "circumvention/lantern": "getlantern.org",
-    "circumvention/riseup": "riseup.net",
-    # dev / storage / games
-    "dev/stackoverflow": "stackoverflow.com",
-    "dev/gitlab": "gitlab.com",
-    "storage/mega": "mega.nz",
-    "storage/dropbox": "dropbox.com",
-    "games/steam": "store.steampowered.com",
-    "games/epic": "epicgames.com",
+    "privacy/privacyguides": "privacyguides.org", "privacy/tails": "tails.net",
+    "privacy/whonix": "whonix.org", "privacy/keepass": "keepassxc.org",
+    "privacy/bitwarden": "bitwarden.com", "privacy/ublock": "ublockorigin.com", "privacy/simplelogin": "simplelogin.io",
+    # VPN providers (site + API — if these are blocked the app fails at login)
+    "vpn-info/proton": "protonvpn.com", "vpn-api/proton": "api.protonvpn.ch", "vpn-api/mullvad": "mullvad.net",
+    "vpn-api/nordvpn": "nordvpn.com", "vpn-api/windscribe": "windscribe.com", "vpn-api/airvpn": "airvpn.org",
+    "vpn-api/expressvpn": "expressvpn.com", "vpn-api/surfshark": "surfshark.com", "vpn-api/cyberghost": "cyberghostvpn.com",
+    "vpn-api/pia": "privateinternetaccess.com", "vpn-api/ivpn": "ivpn.net", "vpn-api/tunnelbear": "tunnelbear.com",
+    "vpn-api/hideme": "hide.me", "vpn-api/warp": "one.one.one.one", "vpn-api/cloudflarewarp": "cloudflarewarp.com",
+    # circumvention / tunnelling projects (software sites)
+    "circumvention/psiphon": "psiphon.ca", "circumvention/lantern": "getlantern.org", "circumvention/riseup": "riseup.net",
+    "circumvention/outline": "getoutline.org", "circumvention/wireguard": "wireguard.com", "circumvention/openvpn": "openvpn.net",
+    "circumvention/shadowsocks": "shadowsocks.org", "circumvention/torbridges": "bridges.torproject.org",
+    "circumvention/snowflake": "snowflake.torproject.org", "circumvention/tailscale": "tailscale.com", "circumvention/zerotier": "zerotier.com",
+    "circumvention/ngrok": "ngrok.com", "circumvention/bittorrent": "bittorrent.com", "circumvention/qbittorrent": "qbittorrent.org",
+    # web proxies (commonly blocked at schools)
+    "webproxy/croxyproxy": "croxyproxy.com", "webproxy/proxysite": "proxysite.com",
+    "webproxy/kproxy": "kproxy.com", "webproxy/4everproxy": "4everproxy.com",
+    # shopping / marketplaces
+    "shopping/amazon": "amazon.com", "shopping/ebay": "ebay.com", "shopping/aliexpress": "aliexpress.com", "shopping/temu": "temu.com",
+    "shopping/trendyol": "trendyol.com", "shopping/hepsiburada": "hepsiburada.com", "shopping/sahibinden": "sahibinden.com",
+    "shopping/etsy": "etsy.com", "shopping/shein": "shein.com",
+    # crypto (mainstream exchanges/explorers — often blocked by institutions)
+    "crypto/coinbase": "coinbase.com", "crypto/binance": "binance.com", "crypto/kraken": "kraken.com", "crypto/blockchain": "blockchain.com",
+    "crypto/etherscan": "etherscan.io", "crypto/coinmarketcap": "coinmarketcap.com",
+    # apps / platforms / misc
+    "apps/appstore": "apps.apple.com", "apps/playstore": "play.google.com", "apps/aurora": "auroraoss.com", "apps/fdroid": "f-droid.org",
+    "apps/microsoftstore": "apps.microsoft.com", "misc/paypal": "paypal.com", "misc/wise": "wise.com", "misc/booking": "booking.com",
+    "misc/airbnb": "airbnb.com", "misc/uber": "uber.com", "misc/notion": "notion.so", "misc/canva": "canva.com", "misc/figma": "figma.com",
+    "misc/trello": "trello.com", "misc/medium": "medium.com", "misc/substack": "substack.com", "misc/change": "change.org",
 }
 
 # outbound port reachability (portquiz.net listens on every TCP port → egress test)
@@ -128,17 +164,22 @@ DOT_SERVERS = {
     "quad9": ("9.9.9.9", "dns.quad9.net"),
 }
 
-# block page / filter signatures (matched lowercased)
-BLOCKPAGE_SIGNS = [
-    "5651", "btk.gov.tr", "internet2.btk", "bu siteye erişim",
-    "erişime engel", "engellenmiştir", "guvenli internet", "güvenli internet",
-    "fortiguard", "web page blocked", "blocked by sophos", "web filter",
-    "access denied", "erişim engellendi", "yasaklı", "content blocked",
-    "this site is blocked", "url blocked", "category blocked",
-    "cisco umbrella", "opendns", "lightspeed", "securly", "goguardian",
-    "netsweeper", "smoothwall", "palo alto networks", "zscaler",
-    "websense", "forcepoint", "barracuda", "mcafee web gateway",
+# block page / filter signatures (matched lowercased).
+# STRONG = a filtering product/regulator page. Counted on any response.
+# WEAK   = generic wording that legitimate sites also use ("access denied" on an Akamai 403, "5651"
+#          in a Turkish legal footer). Counted only on a plain-http final response, where a network
+#          can actually inject a page; over verified HTTPS the page came from the origin itself.
+BLOCKPAGE_STRONG = [
+    "fortiguard", "blocked by sophos", "cisco umbrella", "opendns", "lightspeed", "securly", "goguardian",
+    "netsweeper", "smoothwall", "palo alto networks", "zscaler", "websense", "forcepoint", "barracuda",
+    "mcafee web gateway", "btk.gov.tr", "internet2.btk", "guvenli internet", "güvenli internet",
+    "bu siteye erişim", "erişime engel", "engellenmiştir", "erişim engellendi", "web page blocked",
 ]
+BLOCKPAGE_WEAK = [
+    "5651", "web filter", "access denied", "yasaklı", "content blocked", "this site is blocked",
+    "url blocked", "category blocked",
+]
+BLOCKPAGE_SIGNS = BLOCKPAGE_STRONG + BLOCKPAGE_WEAK
 
 # response headers that give away a transparent HTTP proxy / filter appliance
 PROXY_HEADERS = ["via", "x-squid-error", "x-cache", "x-cache-lookup", "proxy-connection",
@@ -462,11 +503,14 @@ def blockpage_test(domain, timeout):
                          headers={"User-Agent": UA})
         body = r.text[:8000].lower()
         final = r.url.lower()
-        for sig in BLOCKPAGE_SIGNS:
+        signs = BLOCKPAGE_STRONG if final.startswith("https://") else BLOCKPAGE_SIGNS
+        for sig in signs:
             if sig in body or sig in final:
                 out["verdict"] = "BLOCKPAGE"
                 out["detail"] = f"sign='{sig}' url={r.url}"
                 return out
+        if final.startswith("https://") and any(sig in body for sig in BLOCKPAGE_WEAK):
+            out["detail"] = "generic wording on the origin's own HTTPS page (not counted)"
         # did it redirect to a completely different host than its own domain
         if domain.split(".")[-2] not in final and "://" in final:
             out["detail"] = f"redirected → {r.url}"

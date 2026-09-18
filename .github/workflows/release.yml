@@ -67,15 +67,22 @@ jobs:
           $v = "${env:GITHUB_REF_NAME}".TrimStart("v")
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=$v packaging\installer.iss
           Get-ChildItem dist
-      - name: package
+      - name: package (self-explanatory names)
         shell: bash
         run: |
-          mv "${{ matrix.built }}" "dist/${{ matrix.asset }}"
+          v="${GITHUB_REF_NAME#v}"
           case "${{ runner.os }}" in
-            Windows) mv dist/filterscope-gui.exe dist/filterscope-gui-windows-x86_64.exe ;;
-            Linux)   mv dist/filterscope-gui dist/filterscope-gui-linux-x86_64 ;;
-            macOS)   rm -f dist/filterscope-gui
-                     (cd dist && zip -qr filterscope-gui-macos-arm64.app.zip filterscope.app && rm -rf filterscope.app) ;;
+            Windows)
+              mv dist/filterscope.exe     "dist/filterscope-$v-Windows-Terminal.exe"
+              mv dist/filterscope-gui.exe "dist/filterscope-$v-Windows-Portable.exe"
+              mv "dist/filterscope-setup-$v.exe" "dist/filterscope-$v-Windows-Installer.exe" ;;
+            Linux)
+              mv dist/filterscope     "dist/filterscope-$v-Linux-Terminal"
+              mv dist/filterscope-gui "dist/filterscope-$v-Linux-App" ;;
+            macOS)
+              mv dist/filterscope "dist/filterscope-$v-macOS-AppleSilicon-Terminal"
+              rm -f dist/filterscope-gui
+              (cd dist && zip -qr "filterscope-$v-macOS-AppleSilicon.app.zip" filterscope.app && rm -rf filterscope.app) ;;
           esac
           rm -rf dist/filterscope.app
           ls -la dist
@@ -105,12 +112,12 @@ jobs:
           ./gradlew --no-daemon assembleRelease
           v="${GITHUB_REF_NAME#v}"
           mkdir -p ../dist
-          cp app/build/outputs/apk/release/app-release.apk "../dist/filterscope-android-$v.apk"
+          cp app/build/outputs/apk/release/app-release.apk "../dist/filterscope-$v-Android.apk"
           ls -la ../dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android-apk
-          path: dist/filterscope-android-*.apk
+          path: dist/filterscope-*-Android.apk
 
   publish:
     needs: [wheel, binaries, android]
@@ -125,10 +132,29 @@ jobs:
         run: cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: release notes
         run: |
-          awk -v tag="${GITHUB_REF_NAME#v}" '
-            /^## / { if (found) exit; if (index($0, tag)) { found=1; next } }
-            found { print }' CHANGELOG.md > notes.md
-          [ -s notes.md ] || echo "See CHANGELOG.md" > notes.md
+          v="${GITHUB_REF_NAME#v}"
+          {
+            echo "## Which file do I need?"
+            echo
+            echo "| You are on | Download | Notes |"
+            echo "|---|---|---|"
+            echo "| **Windows** | \`filterscope-$v-Windows-Installer.exe\` | Recommended. Start-menu shortcut, no admin. SmartScreen: *More info → Run anyway* (unsigned). |"
+            echo "| Windows, no install | \`filterscope-$v-Windows-Portable.exe\` | Single file, double-click. |"
+            echo "| Windows, terminal | \`filterscope-$v-Windows-Terminal.exe\` | TUI + CLI (scan, compare, history…). |"
+            echo "| **Android** | \`filterscope-$v-Android.apk\` | Android 7+, 64-bit. Allow unknown sources once. |"
+            echo "| **Linux** | \`filterscope-$v-Linux-App\` | chmod +x, run. Terminal build: \`…-Linux-Terminal\`. |"
+            echo "| **macOS** (Apple silicon) | \`filterscope-$v-macOS-AppleSilicon.app.zip\` | Unzip, right-click → Open the first time. Intel Macs: pip below. |"
+            echo "| Python 3.10+ (any OS) | \`filterscope-$v-py3-none-any.whl\` | pip install the file, or pipx install git+https://github.com/tunnelmoth/filterscope |"
+            echo
+            echo "Verify: compare the file's SHA-256 with \`SHA256SUMS.txt\`. Website: https://tunnelmoth.github.io/filterscope/"
+            echo
+            echo "## Changes"
+            echo
+            awk -v tag="$v" '
+              /^## / { if (found) exit; if (index($0, tag)) { found=1; next } }
+              found { print }' CHANGELOG.md
+          } > notes.md
+          cat notes.md
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           name: "filterscope ${{ github.ref_name }} — stable"

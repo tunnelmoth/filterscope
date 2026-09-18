@@ -21,17 +21,19 @@ DEFAULTS = {
     "steps_off": [],         # steps to skip
     "save_reports": True,    # keep full JSON of every scan under reports/
     "verify": True,          # re-check positives once before reporting them
-    "workers": 12,
+    "workers": 20,
 }
 
 PROFILES = {
     "full":   {},
-    "quick":  {"tor": False, "steps_off": ["tor", "proxy", "ssh", "ipv6", "mitm", "nxdomain", "urlfilter"]},
-    "school": {"categories": ["ai", "social", "video", "chat", "games", "vpn-api", "vpn-info", "education",
-                              "messaging", "storage"]},
-    "isp":    {"categories": ["news", "news-tr", "rights", "privacy", "circumvention", "anonymity",
-                              "digital-rights", "vpn-info", "vpn-api", "social"]},
-    "vpn":    {"categories": ["vpn-api", "vpn-info", "anonymity", "circumvention"],
+    "quick":  {"tor": False, "steps_off": ["tor", "proxy", "ssh", "ipv6", "mitm", "nxdomain", "urlfilter"],
+               "categories": ["info", "search", "social", "chat", "messaging", "video", "games", "ai", "vpn-api",
+                              "vpn-info", "news", "news-tr", "education", "dev"]},
+    "school": {"categories": ["games", "video", "music", "social", "chat", "messaging", "ai", "vpn-api", "vpn-info",
+                              "webproxy", "circumvention", "education", "storage", "mail", "apps", "shopping", "info", "search"]},
+    "isp":    {"categories": ["news", "news-tr", "rights", "privacy", "circumvention", "vpn-info", "vpn-api", "webproxy",
+                              "social", "video", "crypto", "religion", "info", "search"]},
+    "vpn":    {"categories": ["vpn-api", "vpn-info", "circumvention", "webproxy", "privacy"],
                "steps_off": ["proxy", "urlfilter", "nxdomain"]},
 }
 

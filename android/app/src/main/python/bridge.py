@@ -35,13 +35,20 @@ def profiles() -> str:
     return json.dumps(sorted(config.PROFILES))
 
 
-def start(profile: str, label: str, listener) -> str:
+def start(profile: str, label: str, listener, domains: str = "") -> str:
     """Blocking: run a scan, stream events to listener, return the report as JSON."""
     global _cancel
     from filterscope import config, scan
     with _lock:
         _cancel = False
         opts = scan.ScanOptions.from_config(config.load(), profile or "full", label=label or None)
+        import re as _re
+        extra = []
+        for raw in _re.split(r"[\s,;]+", domains or ""):
+            d = _re.sub(r"^https?://", "", raw.strip().lower()).split("/")[0].strip(".")
+            if d and _re.match(r"^([a-z0-9-]+\.)+[a-z]{2,}$", d) and d not in extra:
+                extra.append(d)
+        opts.domains = list(opts.domains) + extra
         opts.tor = False                                   # no tor binary on Android
         opts.steps = tuple(s for s in opts.steps if s != "tor")
 

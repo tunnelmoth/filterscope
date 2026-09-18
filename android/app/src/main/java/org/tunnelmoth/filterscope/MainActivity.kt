@@ -154,6 +154,12 @@ fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit) {
                 if (st.scanning) OutlinedButton(onClick = vm::stopScan) { Text("Stop") }
                 else Button(onClick = vm::startScan, enabled = st.ready) { Text("Scan") }
             }
+            var showDomains by remember { mutableStateOf(false) }
+            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { showDomains = !showDomains }) { Text(if (showDomains) "▴ own domains" else "▾ own domains" + (if (st.domains.isNotBlank()) " (set)" else "")) }
+            }
+            if (showDomains) OutlinedTextField(value = st.domains, onValueChange = vm::setDomains, label = { Text("extra domains, comma or newline separated") },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), minLines = 2, maxLines = 4, enabled = !st.scanning)
             LinearProgressIndicator(progress = { st.progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
             Text(st.status + (st.error?.let { "  ·  $it" } ?: ""), color = if (st.error != null) Red else Color.Gray,
                 fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)

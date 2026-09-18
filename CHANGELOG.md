@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.3.114 — 2026-09-19 · **stable**
+
+### Much wider test list
+- **279 sites in 27 categories** (was 58): games (Steam, Epic, Roblox, Minecraft, Riot, Battle.net,
+  PlayStation, Xbox, Nintendo, GOG, itch.io…), streaming & music (Netflix, Disney+, Spotify, Twitch,
+  Kick…), social, chat & calls (WhatsApp, Discord, Teams, Zoom, Signal, Telegram…), Turkish and
+  international news, education, health, religion, dev/open-source, cloud storage & mail, privacy
+  tools, VPN providers, circumvention projects, web proxies, shopping, crypto, app stores, misc.
+  Still nothing inappropriate: mainstream services only.
+- Every domain was resolved over DoH at authoring time; the test-suite checks the list for
+  duplicates, malformed hosts and profile/category consistency.
+- **Your own domains, everywhere**: GUI **Sites…** dialog (pick categories, add domains, persisted),
+  Android "own domains" field, CLI `--domain/--domains-file`, TUI via `filterscope config`.
+- Profiles updated (`quick` is now a curated subset; `school`, `isp`, `vpn` cover the new categories);
+  default parallelism 20.
+
+### Fewer false positives
+- Block-page detection: generic wording (“access denied”, “5651”…) is only counted on a plain-HTTP
+  final response, where a network can inject a page; over verified HTTPS the page came from the
+  origin itself (Akamai 403s, Turkish legal footers). Filter-product signatures still count anywhere.
+
+### Release assets renamed
+- `filterscope-<version>-Windows-Installer.exe`, `-Windows-Portable.exe`, `-Windows-Terminal.exe`,
+  `-Android.apk`, `-Linux-App`, `-Linux-Terminal`, `-macOS-AppleSilicon.app.zip`,
+  `-macOS-AppleSilicon-Terminal`. Every release opens with a "which file do I need?" table.
+
 ## 3.2.112 — 2026-09-19 · **stable**
 
 First release marked stable. Version scheme from here: `MAJOR.MINOR.BUILD`, where BUILD is a

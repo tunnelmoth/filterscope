@@ -4,7 +4,7 @@ Measure the **filtering / censorship** behaviour of the network you are on — l
 
 > Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
 
-**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.2.112**
+**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.3.114**
 
 Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 
@@ -12,7 +12,7 @@ Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [rel
 ╭───────────────────────────── filtering analysis ─────────────────────────────╮
 │   17/100   █████░░░░░░░░░░░░░░░░░░░░░░░░░   LIGHT   confidence high          │
 │                                                                              │
-│ school shows light filtering (score 17/100). 4 of 58 sites are affected,     │
+│ school shows light filtering (score 17/100). 4 of 279 sites are affected,     │
 │ mostly chat (1/1), vpn-info (1/1), vpn-api (2/5). Techniques: TLS            │
 │ server-name inspection, HTTP block page. The filter is application-layer     │
 │ only; SNI-hiding tunnels and ECH get through.                                │
@@ -51,11 +51,11 @@ Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [rel
 
 ## Install
 
-**Windows, no terminal**: download and run `filterscope-setup-<version>.exe` from [releases](https://github.com/tunnelmoth/filterscope/releases) — it puts *filterscope* in the Start menu. Press **Scan**, read the verdict, click **Open report**. (Or grab the portable `filterscope-gui-windows-x86_64.exe`.)
+**Windows, no terminal**: download and run `filterscope-<version>-Windows-Installer.exe` from [releases](https://github.com/tunnelmoth/filterscope/releases) — it puts *filterscope* in the Start menu. Press **Scan**, read the verdict, click **Open report**. (Or grab the portable `filterscope-<version>-Windows-Portable.exe`.)
 
-**Android**: install `filterscope-android-<version>.apk` from [releases](https://github.com/tunnelmoth/filterscope/releases) (sideload; Android 7+, 64-bit). Same engine, same score, **Open report** / **Share** for the HTML evidence. No Tor test on Android.
+**Android**: install `filterscope-<version>-Android.apk` from [releases](https://github.com/tunnelmoth/filterscope/releases) (sideload; Android 7+, 64-bit). Same engine, same score, **Open report** / **Share** for the HTML evidence. No Tor test on Android.
 
-**Binary** (no Python needed): download `filterscope-windows-x86_64.exe`, `filterscope-linux-x86_64` or `filterscope-macos-arm64` (terminal) or the `filterscope-gui-*` windowed builds from [releases](https://github.com/tunnelmoth/filterscope/releases). Verify with `SHA256SUMS.txt`. Intel Macs: use the Python install below.
+**Binary** (no Python needed): from [releases](https://github.com/tunnelmoth/filterscope/releases): `filterscope-<version>-Windows-Installer.exe` (or `-Windows-Portable.exe`), `-Android.apk`, `-Linux-App`, `-macOS-AppleSilicon.app.zip`; the `-Terminal` builds carry the TUI/CLI. Every release opens with a which-file-do-I-need table. Verify with `SHA256SUMS.txt`. Intel Macs: use the Python install below.
 
 **Python** (3.10+):
 

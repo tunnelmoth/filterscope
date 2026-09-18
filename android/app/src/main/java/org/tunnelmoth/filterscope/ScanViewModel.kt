@@ -97,8 +97,10 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
             caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true -> "vpn"
             else -> ""
         }
-        val gw = lp?.routes?.firstOrNull { it.isDefaultRoute && it.gateway != null }?.gateway?.hostAddress ?: ""
-        val dns = lp?.dnsServers?.firstOrNull()?.hostAddress ?: ""
+        val defaults = lp?.routes?.filter { it.isDefaultRoute && it.gateway != null }.orEmpty()
+        val gw = (defaults.firstOrNull { it.gateway is java.net.Inet4Address } ?: defaults.firstOrNull())?.gateway?.hostAddress ?: ""
+        val dnsList = lp?.dnsServers.orEmpty()
+        val dns = (dnsList.firstOrNull { it is java.net.Inet4Address } ?: dnsList.firstOrNull())?.hostAddress ?: ""
         val wifiInfo = if (transport == "wifi") caps?.transportInfo as? android.net.wifi.WifiInfo else null
         val ssid = wifiInfo?.ssid?.trim('"')?.takeIf { it != "<unknown ssid>" } ?: ""
         bridge.callAttr("set_net_hints", gw, dns, ssid, transport)

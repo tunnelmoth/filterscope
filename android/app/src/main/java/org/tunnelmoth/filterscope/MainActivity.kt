@@ -154,24 +154,27 @@ fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit) {
                 if (st.scanning) OutlinedButton(onClick = vm::stopScan) { Text("Stop") }
                 else Button(onClick = vm::startScan, enabled = st.ready) { Text("Scan") }
             }
-            LinearProgressIndicator(progress = { st.progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
+            LinearProgressIndicator(progress = { st.progress }, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
             Text(st.status + (st.error?.let { "  ·  $it" } ?: ""), color = if (st.error != null) Red else Color.Gray,
                 fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
 
-            // verdict card
-            Card(Modifier.padding(12.dp).fillMaxWidth(), colors = CardDefaults.cardColors()) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // verdict card (tap to expand the summary)
+            var expanded by remember { mutableStateOf(false) }
+            Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).fillMaxWidth().clickable { expanded = !expanded },
+                colors = CardDefaults.cardColors()) {
+                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Gauge(st.score, st.level)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        if (st.netLine.isNotEmpty()) Text(st.netLine, fontSize = 11.sp, color = Color.Gray, maxLines = 2)
+                        if (st.netLine.isNotEmpty()) Text(st.netLine, fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             when {
                                 st.scanning -> "scanning…"
                                 st.score < 0 -> "press Scan"
                                 else -> "${st.level.uppercase()} filtering — ${st.findings.count { it.second == "r" }} signals — confidence ${st.confidence}"
-                            }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = if (st.score >= 0) levelColor(st.level) else MaterialTheme.colorScheme.onSurface)
-                        Text(st.summary, fontSize = 13.sp)
+                            }, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            color = if (st.score >= 0) levelColor(st.level) else MaterialTheme.colorScheme.onSurface)
+                        Text(st.summary, fontSize = 13.sp, maxLines = if (expanded) 20 else 3, overflow = TextOverflow.Ellipsis)
                         if (st.techniques.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             st.techniques.forEach { (t, l) -> AssistChip(onClick = {}, label = { Text(t, fontSize = 11.sp, color = Red) }) }
                         }

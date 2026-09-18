@@ -4,7 +4,7 @@ Measure the **filtering / censorship** behaviour of the network you are on — l
 
 > Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
 
-Works on **Linux, Windows and macOS**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
+Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 
 ```
 ╭───────────────────────────── filtering analysis ─────────────────────────────╮
@@ -51,6 +51,8 @@ Works on **Linux, Windows and macOS**. Single-file binaries on the [releases pag
 
 **Windows, no terminal**: download and run `filterscope-setup-<version>.exe` from [releases](https://github.com/tunnelmoth/filterscope/releases) — it puts *filterscope* in the Start menu. Press **Scan**, read the verdict, click **Open report**. (Or grab the portable `filterscope-gui-windows-x86_64.exe`.)
 
+**Android**: install `filterscope-android-<version>.apk` from [releases](https://github.com/tunnelmoth/filterscope/releases) (sideload; Android 7+, 64-bit). Same engine, same score, **Open report** / **Share** for the HTML evidence. No Tor test on Android.
+
 **Binary** (no Python needed): download `filterscope-windows-x86_64.exe`, `filterscope-linux-x86_64` or `filterscope-macos-arm64` (terminal) or the `filterscope-gui-*` windowed builds from [releases](https://github.com/tunnelmoth/filterscope/releases). Verify with `SHA256SUMS.txt`. Intel Macs: use the Python install below.
 
 **Python** (3.10+):
@@ -79,6 +81,10 @@ filterscope scan --flagged-only --speed      # only affected sites in the table;
 filterscope report school.json               # re-render a saved JSON (or --html out.html)
 filterscope config set label school          # persistent defaults (timeout, categories, domains, …)
 ```
+
+### Android
+
+The app is a native (Jetpack Compose) front-end over the same Python engine (Chaquopy). Pick a label and a profile, press **Scan**; the gauge, verdict, findings, per-site rows (tap for detail), egress probes and history mirror the desktop app. **Open report** renders the HTML report in the browser, **Share** sends it anywhere. Network identity comes from Android's connectivity API (gateway, resolver, SSID when the OS exposes it).
 
 ### Desktop window
 
@@ -154,6 +160,7 @@ To argue that filtering is improper: keep the timestamped JSON, run the same sca
 pip install -e ".[dev]"
 pytest                                  # offline unit tests
 pyinstaller packaging/filterscope.spec  # single-file binary → dist/
+cd android && ./gradlew assembleDebug   # Android APK (JDK 17, Android SDK 34, python3.13 on PATH)
 ```
 
 CI runs the tests on Linux, Windows and macOS; a `v*` tag builds and publishes the binaries.

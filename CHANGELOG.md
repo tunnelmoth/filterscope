@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.2.0 — 2026-09-18
+
+### Android app
+- `filterscope-android-<version>.apk` — native Jetpack Compose UI over the same Python engine
+  (Chaquopy, Python 3.13, arm64-v8a + x86_64). Scan / Stop, label + profile, live progress, score
+  gauge, verdict, technique chips, findings + advice, sites (filter, affected-only, tap for detail),
+  egress probes, history, compare with previous, **Open report** / **Share** (HTML via FileProvider).
+- Network identity from Android's connectivity API (`sysinfo.HINTS`), history under the app's
+  private files dir. No Tor probe on Android.
+- `android/` Gradle project; CI builds a release-signed APK on every tag (self-signed key in the
+  repo — trust the GitHub release + SHA256SUMS, not the key).
+
 ## 3.1.0 — 2026-09-18
 
 ### Desktop app (no terminal needed)

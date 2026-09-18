@@ -23,3 +23,17 @@ jobs:
       - run: filterscope --version
       - run: filterscope categories
       - run: python -c "import filterscope.gui, filterscope.tui"
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - working-directory: android
+        run: chmod +x gradlew && ./gradlew --no-daemon assembleDebug

@@ -120,9 +120,18 @@ def os_string() -> str:
         return sys.platform
 
 
+# A host app (Android) can supply what it knows instead of shelling out.
+HINTS: dict | None = None
+
+
 def net_fingerprint(label: str | None = None) -> dict:
-    fp = {"label": label or "", "search": search_domain(), "gateway": gateway(),
-          "resolver": resolver(), "ssid": ssid(), "os": os_string()}
+    if HINTS:
+        fp = {"label": label or "", "search": HINTS.get("search", ""), "gateway": HINTS.get("gateway", ""),
+              "resolver": HINTS.get("resolver", ""), "ssid": HINTS.get("ssid", ""),
+              "os": HINTS.get("os") or os_string()}
+    else:
+        fp = {"label": label or "", "search": search_domain(), "gateway": gateway(),
+              "resolver": resolver(), "ssid": ssid(), "os": os_string()}
     fp["id"] = hashlib.sha1(
         f"{fp['search']}|{fp['gateway']}|{fp['resolver']}|{fp['ssid']}".encode()
     ).hexdigest()[:8]

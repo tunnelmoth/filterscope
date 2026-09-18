@@ -329,3 +329,41 @@ def test_check_update_parsing(monkeypatch):
     monkeypatch.setattr(core.requests, "get", lambda *a, **k: R())
     u = core.check_update(); assert u["newer"] and u["latest"] == "99.0.1"
     assert core._vtuple("3.3.114") < core._vtuple("3.4.0")
+
+
+def test_services_catalog_and_find():
+    from filterscope import services
+    import re
+    host = re.compile(r"^(([a-z0-9-]+\.)+[a-z]{2,}|\d+\.\d+\.\d+\.\d+)$")
+    for k, sv in services.SERVICES.items():
+        assert sv["hosts"] and sv["name"] and sv["category"], k
+        for h in sv["hosts"]:
+            assert h[0] in ("web", "api", "cdn", "game", "voice", "media", "dc"), h
+            assert host.match(h[1]), h
+            if len(h) > 2:
+                assert h[2].startswith("tcp:") and h[2][4:].isdigit(), h
+    assert services.find("valo") == "valorant" and services.find("Roblox") == "roblox" and services.find("yt") == "youtube"
+    assert services.find("nope-xyz") is None and services.find("") is None
+    assert ("discord", "Discord") in services.suggestions("disc")
+
+
+def test_check_service_verdicts(monkeypatch):
+    from filterscope import services
+    monkeypatch.setitem(services.SERVICES, "fake", {"name": "Fake", "aliases": [], "category": "games",
+        "hosts": [("web", "a.example"), ("api", "b.example"), ("cdn", "c.example")], "tcp": [443], "udp": [(1, 2)], "download": "https://x/y"})
+    def probe(kind, host, timeout, mode=""):
+        v = "SNI-DPI" if host in ("a.example", "b.example") else "ok"
+        return {"kind": kind, "host": host, "dns": "ok", "sni": v, "tcp": "", "verdict": v, "detail": ""}
+    monkeypatch.setattr(core, "_host_probe", probe)
+    monkeypatch.setattr(core, "port_test", lambda label, p, t: (label, "open"))
+    monkeypatch.setattr(core, "stun_multi", lambda t: {"s": "open"})
+    monkeypatch.setattr(core, "throughput_one", lambda url, mbytes=4, seconds=8: {"mbps": 30.0, "bytes": 4_000_000, "error": ""})
+    r = core.check_service("fake", baseline_mbps=40.0)
+    assert r["verdict"] == "BLOCKED" and any("a.example" in x for x in r["reasons"])
+    monkeypatch.setattr(core, "_host_probe", lambda k, h, t, mode="": {"kind": k, "host": h, "dns": "ok", "sni": "ok", "tcp": "", "verdict": "ok", "detail": ""})
+    monkeypatch.setattr(core, "throughput_one", lambda url, mbytes=4, seconds=8: {"mbps": 3.0, "bytes": 4_000_000, "error": ""})
+    r = core.check_service("fake", baseline_mbps=40.0)
+    assert r["verdict"] == "THROTTLED"
+    monkeypatch.setattr(core, "stun_multi", lambda t: {"s": "BLOCKED (timeout)"})
+    r = core.check_service("fake", baseline_mbps=40.0)
+    assert r["verdict"] == "PARTIAL+THROTTLED"

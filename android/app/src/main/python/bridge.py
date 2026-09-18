@@ -139,3 +139,20 @@ def last_summary() -> str:
                            "net": r.get("net", {}).get("label") or r.get("net", {}).get("ssid") or ""})
     except Exception:
         return json.dumps(None)
+
+
+def services_list() -> str:
+    from filterscope import services
+    return json.dumps([[k, v["name"]] for k, v in services.SERVICES.items()])
+
+
+def check_service(query: str) -> str:
+    from filterscope import core, services
+    from filterscope.i18n import t
+    key = services.find(query)
+    if not key:
+        return json.dumps({"error": t("chk.unknown", q=query, known=", ".join(sorted(services.SERVICES)))}, ensure_ascii=False)
+    res = core.check_service(key, timeout=6)
+    v = res["verdict"].split("+")[0]
+    res["sentence"] = t({"OK": "chk.ok", "BLOCKED": "chk.blocked", "PARTIAL": "chk.partial", "THROTTLED": "chk.throttled"}[v], name=res["name"])
+    return json.dumps(res, ensure_ascii=False, default=str)

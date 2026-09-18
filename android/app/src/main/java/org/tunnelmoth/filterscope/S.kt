@@ -29,4 +29,9 @@ object S {
     val newBlock get() = p("new block", "yeni engel"); val lifted get() = p("lifted", "kalktı")
     val includeNet get() = p("Include network name on the card?", "Kartta ağ adı görünsün mü?"); val yes get() = p("Yes", "Evet"); val no get() = p("No", "Hayır")
     val widgetTap get() = p("tap to scan", "taramak için dokun"); val widgetNone get() = p("no scan yet", "henüz tarama yok")
+    val tabCheck get() = p("Check", "Sorgula"); val checkHint get() = p("service: valorant, discord, roblox, youtube…", "servis: valorant, discord, roblox, youtube…")
+    val check get() = p("Check", "Sorgula"); val why get() = p("why", "neden"); val endpoints get() = p("endpoints", "uç noktalar")
+    val ports get() = p("TCP ports (egress)", "TCP portları (çıkış)"); val udp get() = p("UDP egress", "UDP çıkışı")
+    val download get() = p("download from the service's CDN", "servisin CDN'inden indirme"); val baseline get() = p("baseline", "taban")
+    val checking get() = p("checking…", "sorgulanıyor…")
 }

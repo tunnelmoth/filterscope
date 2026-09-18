@@ -215,7 +215,7 @@ fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit, onCard: (Bo
             }
 
             TabRow(selectedTabIndex = tab) {
-                listOf(S.tabOverview, S.tabSites, S.tabEgress, S.tabHistory).forEachIndexed { i, t ->
+                listOf(S.tabOverview, S.tabSites, S.tabEgress, S.tabHistory, S.tabCheck).forEachIndexed { i, t ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) })
                 }
             }
@@ -224,6 +224,7 @@ fun Main(vm: ScanViewModel, onOpen: () -> Unit, onShare: () -> Unit, onCard: (Bo
                 1 -> Sites(st)
                 2 -> Probes(st)
                 3 -> History(st)
+                4 -> CheckTab(st, vm)
             }
         }
     }
@@ -359,5 +360,64 @@ fun History(st: UiState) {
             HorizontalDivider()
         }
         if (st.history.isEmpty()) item { Text(S.noHistory, color = Color.Gray, modifier = Modifier.padding(12.dp)) }
+    }
+}
+
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun CheckTab(st: UiState, vm: ScanViewModel) {
+    Column(Modifier.fillMaxSize().padding(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = st.checkQuery, onValueChange = vm::setCheckQuery, label = { Text(S.checkHint) }, singleLine = true,
+                modifier = Modifier.weight(1f), enabled = !st.checkBusy)
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = { vm.checkService() }, enabled = st.ready && !st.checkBusy && st.checkQuery.isNotBlank()) { Text(S.check) }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(vertical = 6.dp)) {
+            st.services.take(14).forEach { (k, _) -> AssistChip(onClick = { vm.checkService(k) }, label = { Text(k, fontSize = 11.sp) }) }
+        }
+        if (st.checkBusy) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text(S.checking, color = Color.Gray, fontSize = 12.sp) }
+        st.checkError?.let { Text(it, color = Red, fontSize = 13.sp) }
+        val r = st.checkResult ?: return
+        val v = r.optString("verdict"); val base = v.substringBefore("+")
+        val col = when (base) { "OK" -> Green; "BLOCKED" -> Red; "PARTIAL" -> Amber; else -> Color(0xFF8E24AA) }
+        LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                Text(r.optString("name"), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(v, color = col, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(r.optString("sentence"), fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+                val reasons = r.optJSONArray("reasons")
+                if (reasons != null && reasons.length() > 0) {
+                    Text(S.why, fontWeight = FontWeight.Bold)
+                    for (i in 0 until reasons.length()) Text("• " + reasons.getString(i), color = Red, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                }
+                Text(S.endpoints, fontWeight = FontWeight.Bold)
+            }
+            val hosts = r.optJSONArray("hosts")
+            if (hosts != null) items(hosts.length()) { i ->
+                val h = hosts.getJSONObject(i)
+                val stt = h.optString("sni").ifEmpty { h.optString("tcp").ifEmpty { h.optString("dns").ifEmpty { "?" } } }
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Text(h.optString("kind"), color = Color.Gray, fontSize = 11.sp, modifier = Modifier.width(44.dp))
+                    Text(h.optString("host"), fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(stt, fontSize = 12.sp, color = verdictColor(if (h.optString("verdict") == "ok") "ok" else stt), fontWeight = FontWeight.SemiBold)
+                }
+            }
+            item {
+                val ports = r.optJSONObject("ports")
+                if (ports != null && ports.length() > 0) {
+                    Text(S.ports, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                    Text(ports.keys().asSequence().sorted().joinToString("   ") { "$it ${ports.optString(it)}" }, fontSize = 12.sp)
+                }
+                if (r.optString("udp").isNotEmpty()) Text("${S.udp}: ${r.optString("udp")}", fontSize = 12.sp, color = verdictColor(r.optString("udp")), modifier = Modifier.padding(top = 6.dp))
+                val d = r.optJSONObject("download")
+                if (d != null && d.length() > 0) {
+                    val txt = if (d.optString("error").isNotEmpty()) "error (${d.optString("error")})" else "${d.optDouble("mbps")} Mbit/s  ·  ${S.baseline} ${d.opt("baseline")} Mbit/s"
+                    Text("${S.download}: $txt", fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+        }
     }
 }

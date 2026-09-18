@@ -4,7 +4,7 @@ Measure the **filtering / censorship** behaviour of the network you are on — l
 
 > Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
 
-**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.4.116**
+**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.5.115**
 
 Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
 
@@ -101,6 +101,16 @@ The app is a native (Jetpack Compose) front-end over the same Python engine (Cha
 ### TUI keys
 
 `r` rescan · `t` toggle Tor · `s` save JSON+HTML · `/` filter sites · `f` affected only · `c` compare with previous scan · `1-5` tabs · `q` quit
+
+### Is Valorant blocked here? Ask by name
+
+```bash
+filterscope check valorant            # OK / PARTIAL / BLOCKED / THROTTLED, with reasons
+filterscope check discord roblox yt   # several at once; --json for scripts
+filterscope services                  # the 30 profiles it knows
+```
+
+A profile is the set of endpoints the service actually needs (auth/API, CDN, game and chat servers, raw ports), the TCP ports it uses, UDP egress, and a real download from the service's own CDN measured against a Cloudflare baseline. The window has a **Check…** dialog and the Android app a **Check** tab.
 
 ### Evidence: two networks, one diff
 

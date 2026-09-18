@@ -35,4 +35,4 @@ exe = EXE(
 )
 if sys.platform == "darwin":
     app = BUNDLE(exe, name="filterscope.app", icon=None, bundle_identifier="org.tunnelmoth.filterscope",
-                 info_plist={"CFBundleShortVersionString": "3.4.116", "NSHighResolutionCapable": True})
+                 info_plist={"CFBundleShortVersionString": "3.5.115", "NSHighResolutionCapable": True})

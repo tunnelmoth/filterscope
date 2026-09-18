@@ -257,3 +257,35 @@ _STYLE = {"g": "green", "r": "red", "y": "yellow", "d": "dim", "b": "blue"}
 
 def _c(c, s) -> Text:
     return Text(s, style=_STYLE.get(c, ""))
+
+
+CHECK_STYLE = {"OK": "bold green", "PARTIAL": "bold yellow", "BLOCKED": "bold red", "THROTTLED": "bold magenta"}
+
+
+def print_check(res: dict):
+    v = res["verdict"]
+    style = CHECK_STYLE.get(v.split("+")[0], "bold yellow")
+    key = {"OK": "chk.ok", "BLOCKED": "chk.blocked", "PARTIAL": "chk.partial", "THROTTLED": "chk.throttled"}[v.split("+")[0]]
+    console.print(Panel(Text.from_markup(f"[{style}]{escape(v)}[/]  ") + Text(t(key, name=res["name"])),
+                        title=f"[bold]{escape(res['name'])}[/]", border_style=style.split()[-1], box=box.ROUNDED))
+    if res["reasons"]:
+        console.print(f"  [bold]{t('chk.reasons')}:[/]")
+        for r in res["reasons"]:
+            console.print(f"    • {escape(r)}")
+    tb = Table(title=t("chk.endpoints"), title_style="bold blue", box=box.SIMPLE_HEAD, pad_edge=False)
+    tb.add_column("kind", style="dim"); tb.add_column("host", style="cyan"); tb.add_column("DNS"); tb.add_column("TLS/TCP"); tb.add_column("detail", style="dim")
+    for h in res["hosts"]:
+        tb.add_row(h["kind"], h["host"], verdict_text(h["dns"] or "—"), verdict_text(h["sni"] or h["tcp"] or "—"), Text(h.get("detail", "") or ""))
+    console.print(tb)
+    if res["ports"]:
+        console.print(kv_table(t("chk.ports"), [(k, v2, "") for k, v2 in sorted(res["ports"].items())], "port"))
+    if res.get("udp"):
+        console.print(f"  {t('chk.udp')}: ", verdict_text(res["udp"]), f"  [dim]{t('chk.udp_note')}[/]")
+    d = res.get("download") or {}
+    if d:
+        if d.get("error"):
+            console.print(f"  {t('chk.download')}: [red]error ({escape(d['error'])})[/]")
+        else:
+            console.print(f"  {t('chk.download')}: [cyan]{d.get('mbps', 0)} Mbit/s[/]  ·  {t('chk.baseline')}: [cyan]{d.get('baseline', '?')} Mbit/s[/]"
+                          + (f"  [dim]({escape(d['note'])})[/]" if d.get("note") else ""))
+    console.print()

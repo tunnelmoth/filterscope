@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.5.115 — 2026-09-19 · **stable**
+
+### Ask by name: `filterscope check valorant`
+- **Service profiles** for 30 popular services (Valorant, League, Discord, Roblox, Minecraft,
+  Fortnite/Epic, Steam, Genshin, Brawl Stars/Clash, PUBG, YouTube, Twitch, Kick, Netflix, Spotify,
+  WhatsApp, Telegram, Signal, Zoom, Teams, Instagram, TikTok, X, ChatGPT, Claude, Gemini, Proton VPN,
+  WireGuard, GitHub, Wikipedia): the endpoints the service really needs (web, auth/API, CDN, game and
+  chat servers, raw-protocol ports), the TCP ports it uses, UDP egress, and a **real download from the
+  service's own CDN** compared with a Cloudflare baseline.
+- Verdict per service: **OK / PARTIAL / BLOCKED / THROTTLED** with the reasons, localized.
+- CLI `filterscope check valorant discord` (`--json`, `--lang`), `filterscope services`; GUI **Check…**
+  dialog with one-tap service chips; Android **Check** tab.
+- Positives are re-checked once; hosts that do not speak HTTPS (WhatsApp 5222, Supercell 9339, Riot chat
+  5223, Telegram DC IPs) are tested with a plain TCP connect instead of a TLS probe.
+
 ## 3.4.116 — 2026-09-19 · **stable**
 
 ### Throttling detection

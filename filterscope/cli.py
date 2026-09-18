@@ -4,6 +4,7 @@
   filterscope gui                      desktop window (Tkinter)
   filterscope scan [opts]              CLI scan with progress; exit 2 on interference
   filterscope scan --watch 30          re-scan every 30 min, print what changed
+  filterscope check valorant discord   is a service blocked / throttled here?
   filterscope compare A.json B.json    diff two reports (school vs mobile)
   filterscope diff                     this network: latest stored report vs the one before
   filterscope history [--html out]     evidence timeline
@@ -261,6 +262,40 @@ def cmd_config(a) -> int:
     return 0
 
 
+def cmd_check(a) -> int:
+    from . import services
+    from .render import console, print_check
+    if a.lang:
+        set_lang(a.lang)
+    rc = 0
+    baseline = None
+    for q in a.service:
+        key = services.find(q)
+        if not key:
+            console.print(f"[red]{t('chk.unknown', q=q, known=', '.join(sorted(services.SERVICES)))}[/]")
+            rc = 2
+            continue
+        with console.status(f"[bold blue]{services.SERVICES[key]['name']}…"):
+            res = core.check_service(key, timeout=a.timeout or 6, baseline_mbps=baseline)
+        if res.get("download", {}).get("baseline"):
+            baseline = res["download"]["baseline"]
+        if a.json:
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+        else:
+            print_check(res)
+        if res["verdict"] != "OK":
+            rc = 2
+    return rc
+
+
+def cmd_services(a) -> int:
+    from . import services
+    for k, s in services.SERVICES.items():
+        al = (" (" + ", ".join(s["aliases"]) + ")") if s.get("aliases") else ""
+        print(f"{k:12} {s['name']}{al}  — {len(s['hosts'])} endpoints, {s['category']}")
+    return 0
+
+
 def cmd_categories(a) -> int:
     for c in core.categories():
         doms = [d for k, d in core.SITES.items() if k.split("/")[0] == c]
@@ -316,6 +351,16 @@ def build_parser():
     p.add_argument("key", nargs="?")
     p.add_argument("value", nargs="?")
     p.set_defaults(fn=cmd_config)
+
+    p = sub.add_parser("check", help="is a service (valorant, discord, roblox…) blocked or throttled here?")
+    p.add_argument("service", nargs="+")
+    p.add_argument("--timeout", type=float)
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--lang", choices=["en", "tr"])
+    p.set_defaults(fn=cmd_check)
+
+    p = sub.add_parser("services", help="list the service profiles `check` knows")
+    p.set_defaults(fn=cmd_services)
 
     p = sub.add_parser("categories", help="list site categories and domains")
     p.set_defaults(fn=cmd_categories)

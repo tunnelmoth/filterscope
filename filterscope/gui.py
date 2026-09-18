@@ -119,7 +119,8 @@ class App:
         cb = ttk.Combobox(tb, textvariable=self._profile, values=sorted(config.PROFILES), width=8, state="readonly")
         cb.pack(side="left", padx=(4, 12))
         ttk.Checkbutton(tb, text=t("ui.tor"), variable=self._tor).pack(side="left", padx=(0, 8))
-        ttk.Button(tb, text=t("ui.sites"), command=self.sites_dialog).pack(side="left", padx=(0, 6))
+        ttk.Button(tb, text=t("ui.sites"), command=self.sites_dialog).pack(side="left", padx=(0, 4))
+        ttk.Button(tb, text=t("chk.go") + "…", command=self.check_dialog).pack(side="left", padx=(0, 6))
         lang_btn = ttk.Button(tb, text="TR" if get_lang() == "en" else "EN", width=3, command=self.toggle_lang)
         lang_btn.pack(side="left", padx=(0, 12))
         ttk.Button(tb, text=t("ui.folder"), width=7, command=lambda: open_path(config.DIR if os.path.isdir(config.DIR) else os.getcwd())).pack(side="right")
@@ -349,6 +350,83 @@ class App:
         ttk.Button(btns, text="Save", style="Accent.TButton", command=save).pack(side="right")
         ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="right", padx=6)
 
+    # ── service check dialog ("is Valorant blocked here?") ──
+    def check_dialog(self):
+        from . import services
+        win = tk.Toplevel(self.root)
+        win.title(t("chk.title"))
+        win.transient(self.root)
+        win.geometry("760x560")
+        win.configure(bg=BG)
+        top = ttk.Frame(win, padding=10)
+        top.pack(fill="x")
+        q = tk.StringVar()
+        ent = ttk.Entry(top, textvariable=q, width=28)
+        ent.pack(side="left")
+        ent.focus_set()
+        status = tk.StringVar(value=t("chk.hint"))
+        out = tk.Text(win, bg=CARD, fg=FG, wrap="word", borderwidth=1, relief="solid", highlightthickness=0,
+                      padx=8, pady=6, state="disabled", font="TkDefaultFont")
+        for tag, col in (("ok", GREEN_FG), ("bad", RED_FG), ("warn", YEL_FG), ("dim", MUTED), ("cyan", "#1e6fb3")):
+            out.tag_configure(tag, foreground=col)
+        out.tag_configure("h", font=("TkDefaultFont", 13, "bold"))
+        out.tag_configure("b", font=("TkDefaultFont", 10, "bold"))
+        sugg = ttk.Frame(win)
+        sugg.pack(fill="x", padx=10)
+        for k, name in services.suggestions("", limit=12):
+            ttk.Button(sugg, text=k, width=9, command=lambda k=k: (q.set(k), run())).pack(side="left", padx=1, pady=(0, 6))
+        ttk.Label(win, textvariable=status, foreground=MUTED).pack(anchor="w", padx=12)
+        out.pack(fill="both", expand=True, padx=10, pady=(4, 10))
+
+        def render(res):
+            v = res["verdict"]
+            tagv = {"OK": "ok", "BLOCKED": "bad", "PARTIAL": "warn", "THROTTLED": "cyan"}[v.split("+")[0]]
+            key = {"OK": "chk.ok", "BLOCKED": "chk.blocked", "PARTIAL": "chk.partial", "THROTTLED": "chk.throttled"}[v.split("+")[0]]
+            parts = [(res["name"] + "  ", "h"), (v + "\n", tagv), (t(key, name=res["name"]) + "\n\n", "")]
+            if res["reasons"]:
+                parts.append((t("chk.reasons") + ":\n", "b"))
+                parts += [("  • " + r + "\n", "bad") for r in res["reasons"]]
+                parts.append(("\n", ""))
+            parts.append((t("chk.endpoints") + ":\n", "b"))
+            for h in res["hosts"]:
+                st = h["sni"] or h["tcp"] or h["dns"] or "?"
+                tg = "ok" if h["verdict"] == "ok" else ("dim" if h["verdict"] == "?" else "bad")
+                parts += [(f"  {h['kind']:6} {h['host']:44} ", "dim"), (st + ("  " + h["detail"] if h.get("detail") else "") + "\n", tg)]
+            if res["ports"]:
+                parts.append(("\n" + t("chk.ports") + ": ", "b"))
+                parts += [(f"{k} {v2}   ", "ok" if not v2.startswith("BLOCKED") else "bad") for k, v2 in sorted(res["ports"].items())]
+                parts.append(("\n", ""))
+            if res.get("udp"):
+                parts += [(t("chk.udp") + ": ", "b"), (res["udp"] + "\n", "ok" if res["udp"] == "open" else "bad"), ("  " + t("chk.udp_note") + "\n", "dim")]
+            d = res.get("download") or {}
+            if d:
+                if d.get("error"):
+                    parts += [(t("chk.download") + ": ", "b"), (f"error ({d['error']})\n", "bad")]
+                else:
+                    parts += [(t("chk.download") + ": ", "b"), (f"{d.get('mbps', 0)} Mbit/s", "cyan"), (f"   {t('chk.baseline')}: {d.get('baseline', '?')} Mbit/s", "dim"),
+                              ((f"   ({d['note']})" if d.get("note") else "") + "\n", "dim")]
+            self._set_text(out, parts)
+
+        def run(*_):
+            key = services.find(q.get())
+            if not key:
+                status.set(t("chk.unknown", q=q.get(), known=", ".join(sorted(services.SERVICES))))
+                return
+            status.set(f"{services.SERVICES[key]['name']} …")
+            self._set_text(out, [])
+
+            def worker():
+                try:
+                    res = core.check_service(key, timeout=6)
+                except Exception as e:  # pragma: no cover
+                    self.ui(lambda: status.set(f"error: {e}"))
+                    return
+                self.ui(lambda: (render(res), status.set(res["name"] + " — " + res["verdict"])))
+            threading.Thread(target=worker, daemon=True).start()
+
+        ttk.Button(top, text=t("chk.go"), style="Accent.TButton", command=run).pack(side="left", padx=8)
+        ent.bind("<Return>", run)
+
     # ── scanning ─────────────────────────────────────────────────────────────
     def build_opts(self) -> scan.ScanOptions:
         cfg = config.load()
@@ -400,8 +478,17 @@ class App:
             pass
         self.root.after(80, self._pump)
 
+    def ui(self, fn):
+        """Run fn on the Tk thread (Tk is not thread-safe; worker threads use this)."""
+        self.q.put(("call", (fn,)))
+
     def _handle(self, ev, a):
-        if ev == "net":
+        if ev == "call":
+            try:
+                a[0]()
+            except Exception:
+                pass
+        elif ev == "net":
             fp = a[0]
             self.net_lbl.configure(text=f"{t('ui.network')}: {sysinfo.net_name(fp)}   [id {fp['id']}]   gw {fp.get('gateway') or '?'}   "
                                         f"resolver {fp.get('resolver') or '?'}   {fp.get('os', '')}")
@@ -621,8 +708,8 @@ class App:
             u = core.check_update()
             if u and u.get("newer"):
                 self._update_url = u["url"]
-                self.root.after(0, lambda: self.update_lbl.configure(text="  " + t("ui.update", latest=u["latest"]) + "  ") or
-                                self.update_lbl.pack(fill="x", padx=12, pady=(0, 6), after=self.root.winfo_children()[1]))
+                self.ui(lambda: (self.update_lbl.configure(text="  " + t("ui.update", latest=u["latest"]) + "  "),
+                                 self.update_lbl.pack(fill="x", padx=12, pady=(0, 6), after=self.root.winfo_children()[1])))
         threading.Thread(target=worker, daemon=True).start()
 
     def save_json(self):

@@ -58,6 +58,11 @@ data class UiState(
     val reportJson: String? = null,
     val error: String? = null,
     val update: Pair<String, String>? = null,   // latest version, url
+    val checkQuery: String = "",
+    val checkBusy: Boolean = false,
+    val checkResult: JSONObject? = null,
+    val checkError: String? = null,
+    val services: List<Pair<String, String>> = emptyList(),
 )
 
 private val NEUTRAL = setOf("ok", "?", "no-dns", "unreachable", "")
@@ -78,7 +83,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 val version = bridge.callAttr("init", files, lang).toString()
                 val profiles = JSONArray(bridge.callAttr("profiles").toString()).let { a -> List(a.length()) { a.getString(it) } }
                 val saved = try { getApplication<Application>().getSharedPreferences("fs", Context.MODE_PRIVATE).getString("domains", "") ?: "" } catch (_: Exception) { "" }
-                _state.update { it.copy(ready = true, version = version, profiles = profiles, domains = saved) }
+                val svc = try { JSONArray(bridge.callAttr("services_list").toString()).let { a -> List(a.length()) { i -> a.getJSONArray(i).getString(0) to a.getJSONArray(i).getString(1) } } } catch (_: Exception) { emptyList() }
+                _state.update { it.copy(ready = true, version = version, profiles = profiles, domains = saved, services = svc) }
                 loadHistory()
                 try {
                     val u = bridge.callAttr("check_update").toString()
@@ -100,6 +106,22 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         try { getApplication<Application>().getSharedPreferences("fs", Context.MODE_PRIVATE).edit().putString("domains", v).apply() } catch (_: Exception) {}
     }
     fun setProfile(v: String) = _state.update { it.copy(profile = v) }
+    fun setCheckQuery(v: String) = _state.update { it.copy(checkQuery = v) }
+
+    fun checkService(q: String = _state.value.checkQuery) {
+        if (q.isBlank() || _state.value.checkBusy) return
+        _state.update { it.copy(checkBusy = true, checkResult = null, checkError = null, checkQuery = q) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                try { netHints() } catch (_: Exception) {}
+                val o = JSONObject(bridge.callAttr("check_service", q).toString())
+                if (o.has("error")) _state.update { it.copy(checkBusy = false, checkError = o.getString("error")) }
+                else _state.update { it.copy(checkBusy = false, checkResult = o) }
+            } catch (e: Exception) {
+                _state.update { it.copy(checkBusy = false, checkError = e.message ?: e.toString()) }
+            }
+        }
+    }
 
     private fun netHints() {
         val ctx = getApplication<Application>()

@@ -717,6 +717,135 @@ def throttle_test(targets=None, mbytes=4):
                       if throttled else (f"best {best} Mbps, all targets within range" if ok else "no target reachable")}
 
 
+# ── service check: "is Valorant blocked / throttled here?" ─────────────────────
+def _service_download_url(spec: str):
+    """Resolve dynamic download specs: 'ddragon:' → current dragontail tarball."""
+    if spec.startswith("ddragon:"):
+        ver = requests.get("https://ddragon.leagueoflegends.com/api/versions.json", timeout=8,
+                           headers={"User-Agent": UA}).json()[0]
+        return f"https://ddragon.leagueoflegends.com/cdn/dragontail-{ver}.tgz"
+    if spec == "fast.com":
+        # Netflix's own CDN via fast.com's public client token (the same one the fast.com page uses)
+        r = requests.get("https://api.fast.com/netflix/speedtest/v2", timeout=8, headers={"User-Agent": UA},
+                         params={"https": "true", "token": "YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm", "urlCount": 1})
+        r.raise_for_status()
+        return r.json()["targets"][0]["url"]
+    return spec
+
+
+def _host_probe(kind, host, timeout, mode=""):
+    """One endpoint: DNS + TLS/SNI; raw IPs and 'tcp:PORT' hosts get a plain TCP connect."""
+    out = {"kind": kind, "host": host, "dns": "", "sni": "", "tcp": "", "verdict": "ok", "detail": ""}
+    port = int(mode.split(":")[1]) if mode.startswith("tcp:") else None
+    try:
+        ipaddress.ip_address(host)
+        ip = host
+    except ValueError:
+        d = dns_test(host, timeout)
+        out["dns"] = d["verdict"]
+        ip = (d["truth"] or d["system"] or [None])[0]
+        if d["verdict"] not in NEUTRAL:
+            out["verdict"], out["detail"] = d["verdict"], d.get("note", "")
+            return out
+        if not ip:
+            out["verdict"], out["detail"] = "?", "no address"
+            return out
+    if port or ip == host:
+        ok, err, rtt = tcp_open(ip, port or 443, timeout)
+        out["tcp"] = f"open :{port or 443}" if ok else f"BLOCKED ({err})"
+        out["verdict"] = "ok" if ok else ("BLOCKED" if err == "TimeoutError" else "?")
+        out["detail"] = "" if ok else f"tcp {port or 443}: {err}"
+        return out
+    sn = sni_test(host, ip, timeout)
+    out["sni"] = sn["verdict"]
+    if sn["verdict"] not in NEUTRAL:
+        out["verdict"], out["detail"] = sn["verdict"], sn.get("detail", "")
+    elif sn["verdict"] == "tcp-block":
+        out["verdict"], out["detail"] = "BLOCKED", sn.get("detail", "")
+    return out
+
+
+def check_service(key: str, timeout=6, baseline_mbps=None, emit=None):
+    """Full picture for one service profile: every endpoint, the TCP ports it needs
+    (generic egress via portquiz), UDP egress, and real throughput from its own CDN
+    against a Cloudflare baseline. Returns a dict with verdict OK/PARTIAL/BLOCKED/THROTTLED."""
+    from . import services as _svc
+    spec = _svc.SERVICES[key]
+    emit = emit or (lambda *a: None)
+    res = {"key": key, "name": spec["name"], "category": spec["category"], "hosts": [], "ports": {},
+           "udp": "", "download": {}, "verdict": "OK", "reasons": [], "ts": time.strftime("%Y-%m-%d %H:%M:%S")}
+    hosts = [(h[0], h[1], h[2] if len(h) > 2 else "") for h in spec["hosts"]]
+    order = {(k, h): i for i, (k, h, _) in enumerate(hosts)}
+    modes = {(k, h): m for k, h, m in hosts}
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        futs = {ex.submit(_host_probe, k, h, timeout, m): (k, h) for k, h, m in hosts}
+        for f in as_completed(futs):
+            r = f.result()
+            res["hosts"].append(r)
+            emit("host", r)
+    res["hosts"].sort(key=lambda r: order.get((r["kind"], r["host"]), 99))
+    # re-check positives once (transient filter)
+    for r in res["hosts"]:
+        if r["verdict"] not in NEUTRAL:
+            again = _host_probe(r["kind"], r["host"], timeout, modes.get((r["kind"], r["host"]), ""))
+            if again["verdict"] in NEUTRAL:
+                r["verdict"], r["detail"], r["transient"] = "?", "transient (not reproduced)", True
+    if spec.get("tcp"):
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            futs = {ex.submit(port_test, f"TCP {p}", p, timeout): p for p in spec["tcp"]}
+            for f in as_completed(futs):
+                label, st = f.result()
+                res["ports"][label] = st
+                emit("port", label, st)
+    if spec.get("udp"):
+        det = stun_multi(timeout)
+        res["udp"] = "open" if any(v == "open" for v in det.values()) else "BLOCKED"
+        emit("udp", res["udp"])
+    dl = spec.get("download")
+    if dl:
+        try:
+            url = _service_download_url(dl)
+            res["download"] = throughput_one(url, 4)
+            res["download"]["url"] = url
+            if baseline_mbps is None:
+                res["download"]["baseline"] = throughput_one(THROTTLE_TARGETS["cloudflare"], 4)["mbps"]
+            else:
+                res["download"]["baseline"] = baseline_mbps
+            if spec.get("download_note"):
+                res["download"]["note"] = spec["download_note"]
+        except Exception as e:
+            res["download"] = {"mbps": 0.0, "bytes": 0, "error": type(e).__name__}
+        emit("download", res["download"])
+
+    # verdict
+    core_kinds = {"web", "api", "game", "dc"}
+    blocked = [r for r in res["hosts"] if r["verdict"] not in NEUTRAL]
+    core_blocked = [r for r in blocked if r["kind"] in core_kinds]
+    for r in blocked:
+        res["reasons"].append(f"{r['kind']} {r['host']}: {r['verdict']}")
+    ports_blocked = [k for k, v in res["ports"].items() if v.startswith("BLOCKED")]
+    for k in ports_blocked:
+        res["reasons"].append(f"{k} egress blocked")
+    if spec.get("udp") and res["udp"] == "BLOCKED":
+        res["reasons"].append("UDP egress blocked (game/voice traffic)")
+    d = res["download"]
+    throttled = bool(d) and not d.get("error") and d.get("bytes", 0) > 200_000 and d.get("baseline", 0) >= 5 \
+        and d["mbps"] < d["baseline"] * 0.25
+    if throttled:
+        res["reasons"].append(f"download {d['mbps']} Mbit/s vs baseline {d['baseline']} Mbit/s")
+    if core_blocked and len(core_blocked) >= max(1, len([h for h in spec["hosts"] if h[0] in core_kinds]) // 2):
+        res["verdict"] = "BLOCKED"
+    elif blocked or ports_blocked or (spec.get("udp") and res["udp"] == "BLOCKED"):
+        res["verdict"] = "PARTIAL"
+    elif throttled:
+        res["verdict"] = "THROTTLED"
+    else:
+        res["verdict"] = "OK"
+    if throttled and res["verdict"] != "THROTTLED":
+        res["verdict"] += "+THROTTLED"
+    return res
+
+
 # ── update check ──────────────────────────────────────────────────────────────
 RELEASES_API = "https://api.github.com/repos/tunnelmoth/filterscope/releases/latest"
 RELEASES_URL = "https://github.com/tunnelmoth/filterscope/releases/latest"

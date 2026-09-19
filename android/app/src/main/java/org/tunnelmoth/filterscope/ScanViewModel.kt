@@ -276,7 +276,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         val advice = mutableListOf<Pair<String, String>>()
         advice += (if (java.util.Locale.getDefault().language == "tr") "VPN tanısı" else "VPN diagnosis") to "h"
         advice += lines(rep, "vpn")
-        advice += (if (java.util.Locale.getDefault().language == "tr") "Tünel / aşma" else "Tunnel / circumvention") to "h"
+        advice += (if (java.util.Locale.getDefault().language == "tr") "Tünel / erişim yolları" else "Tunnel / circumvention") to "h"
         advice += lines(rep, "tunnel")
         val n = rep.optJSONArray("flagged")?.length() ?: 0
         val tm = rep.optJSONObject("timings")?.optInt("total_ms") ?: 0

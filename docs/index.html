@@ -7,12 +7,12 @@
 <meta name="description" content="filterscope measures the filtering and censorship on the network you are connected to, using only your own traffic and a clean list of well-known sites. Windows, Android, Linux, macOS. Free software.">
 <meta property="og:title" content="filterscope — see what your network blocks">
 <meta property="og:description" content="Measure DNS tampering, SNI-DPI, TLS interception, blocked ports and more. One click, evidence you can share.">
-<meta property="og:image" content="assets/gui-overview.webp?v=3.6.128">
+<meta property="og:image" content="assets/gui-overview.webp?v=3.6.129">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://api.github.com; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#17232f">
 <link rel="icon" href="assets/icon.png">
-<link rel="stylesheet" href="assets/site.css?v=3.6.128">
+<link rel="stylesheet" href="assets/site.css?v=3.6.129">
 </head>
 <body>
 
@@ -88,8 +88,8 @@
   <p class="sub" data-en>The same engine everywhere. A window for people who do not want a terminal. A live terminal dashboard for people who work in one. An Android app for the network you are standing in.</p>
   <p class="sub" data-tr>Her yerde aynı motor. Terminal görmek istemeyenler için bir pencere. Terminalde çalışanlar için canlı bir pano. İçinde durduğun ağ için bir Android uygulaması.</p>
   <div class="shots">
-    <div><img src="assets/gui-overview.webp?v=3.6.128" alt="filterscope desktop window: score gauge, verdict, findings and advice" loading="lazy"><br><br><img src="assets/gui-sites.webp?v=3.6.128" alt="filterscope desktop window: sites tab with per-site DNS / TLS-SNI / block page verdicts" loading="lazy"></div>
-    <div><img src="assets/android.webp?v=3.6.128" alt="filterscope Android app showing a scan result" loading="lazy"></div>
+    <div><img src="assets/gui-overview.webp?v=3.6.129" alt="filterscope desktop window: score gauge, verdict, findings and advice" loading="lazy"><br><br><img src="assets/gui-sites.webp?v=3.6.129" alt="filterscope desktop window: sites tab with per-site DNS / TLS-SNI / block page verdicts" loading="lazy"></div>
+    <div><img src="assets/android.webp?v=3.6.129" alt="filterscope Android app showing a scan result" loading="lazy"></div>
   </div>
 </section>
 
@@ -113,11 +113,11 @@
 
 <section id="faq" class="faq">
   <h2 data-en>Questions</h2><h2 data-tr>Sorular</h2>
-  <details><summary data-en>Is it safe to run at school or work?</summary><summary data-tr>Okulda / işte çalıştırmak güvenli mi?</summary><p data-en>It connects only to well-known public sites (Wikipedia, BBC, GitHub, Signal, Khan Academy, WHO and similar) and to public test endpoints, in the same way a browser does. It never requests inappropriate content and it never attacks anything. It observes. Whether you may run software on a given network depends on the rules of that network.</p><p data-tr>Yalnızca tanınmış herkese açık sitelere (Wikipedia, BBC, GitHub, Signal, Khan Academy, WHO ve benzerleri) ve herkese açık test uç noktalarına, bir tarayıcı gibi bağlanır. Asla uygunsuz içerik istemez ve hiçbir şeye saldırmaz. Gözlemler. Bir ağda yazılım çalıştırıp çalıştıramayacağın o ağın kurallarına bağlıdır.</p></details>
-  <details><summary data-en>Does it bypass the filter?</summary><summary data-tr>Filtreyi aşıyor mu?</summary><p data-en>No. It measures and explains. The advice section says which kinds of tunnel would work on this network. filterscope changes nothing on your device or on the network.</p><p data-tr>Hayır. Ölçer ve açıklar. Tavsiye bölümü bu ağda hangi tür tünelin çalışacağını söyler. filterscope cihazında veya ağda hiçbir şeyi değiştirmez.</p></details>
-  <details><summary data-en>What leaves my device?</summary><summary data-tr>Cihazımdan ne çıkıyor?</summary><p data-en>Only the test traffic: DNS queries, TLS handshakes and small HTTP requests to the sites in the list, plus one request to 1.1.1.1 that returns your country and Cloudflare location. There is no account, no telemetry and no reporting server. Reports stay in a folder on your device until you share them.</p><p data-tr>Yalnızca test trafiği: listedeki sitelere DNS sorguları, TLS el sıkışmaları ve küçük HTTP istekleri, artı ülkeni ve Cloudflare konumunu döndüren 1.1.1.1'e tek bir istek. Hesap, telemetri ve rapor sunucusu yoktur. Raporlar sen paylaşana kadar cihazındaki bir klasörde durur.</p></details>
-  <details><summary data-en>Why is the Windows build flagged by SmartScreen?</summary><summary data-tr>Windows sürümünü SmartScreen neden işaretliyor?</summary><p data-en>The file is not code-signed with a paid certificate. Verify the SHA-256 against the release's checksum file, then choose “More info” and “Run anyway”. The full source is on GitHub, and GitHub's own CI builds the binaries from that source.</p><p data-tr>Dosya ücretli bir sertifikayla kod-imzalı değildir. SHA-256'yı sürümün sağlama dosyasıyla doğrula, sonra “Daha fazla bilgi” ve “Yine de çalıştır” seç. Kaynağın tamamı GitHub'dadır ve ikili dosyaları GitHub'ın kendi CI'ı o kaynaktan derler.</p></details>
-  <details><summary data-en>How is the score computed?</summary><summary data-tr>Skor nasıl hesaplanıyor?</summary><p data-en>The share of affected sites gives up to 50 points (damped for small scans). Each technique adds a weight, and TLS interception adds the most. Each blocked port adds 2 points. The total is capped at 100. Levels: 0 clean, 1 to 19 light, 20 to 44 moderate, 45 to 69 heavy, 70 and above severe. Every positive site result is tested a second time, and results that do not repeat are dropped.</p><p data-tr>Etkilenen site oranı en fazla 50 puan verir (küçük taramalarda sönümlü). Her teknik bir ağırlık ekler ve en çok HTTPS'in kırılması ekler. Engelli her port 2 puan ekler. Toplam 100 ile sınırlıdır. Seviyeler: 0 temiz, 1-19 hafif, 20-44 orta, 45-69 ağır, 70 ve üstü şiddetli. Pozitif her site sonucu ikinci kez test edilir ve tekrar etmeyen sonuçlar düşer.</p></details>
+  <details><summary><span data-en>Is it safe to run at school or work?</span><span data-tr>Okulda / işte çalıştırmak güvenli mi?</span></summary><p data-en>It connects only to well-known public sites (Wikipedia, BBC, GitHub, Signal, Khan Academy, WHO and similar) and to public test endpoints, in the same way a browser does. It never requests inappropriate content and it never attacks anything. It observes. Whether you may run software on a given network depends on the rules of that network.</p><p data-tr>Yalnızca tanınmış herkese açık sitelere (Wikipedia, BBC, GitHub, Signal, Khan Academy, WHO ve benzerleri) ve herkese açık test uç noktalarına, bir tarayıcı gibi bağlanır. Asla uygunsuz içerik istemez ve hiçbir şeye saldırmaz. Gözlemler. Bir ağda yazılım çalıştırıp çalıştıramayacağın o ağın kurallarına bağlıdır.</p></details>
+  <details><summary><span data-en>Does it bypass the filter?</span><span data-tr>Filtreyi aşıyor mu?</span></summary><p data-en>No. It measures and explains. The advice section says which kinds of tunnel would work on this network. filterscope changes nothing on your device or on the network.</p><p data-tr>Hayır. Ölçer ve açıklar. Tavsiye bölümü bu ağda hangi tür tünelin çalışacağını söyler. filterscope cihazında veya ağda hiçbir şeyi değiştirmez.</p></details>
+  <details><summary><span data-en>What leaves my device?</span><span data-tr>Cihazımdan ne çıkıyor?</span></summary><p data-en>Only the test traffic: DNS queries, TLS handshakes and small HTTP requests to the sites in the list, plus one request to 1.1.1.1 that returns your country and Cloudflare location. There is no account, no telemetry and no reporting server. Reports stay in a folder on your device until you share them.</p><p data-tr>Yalnızca test trafiği: listedeki sitelere DNS sorguları, TLS el sıkışmaları ve küçük HTTP istekleri, artı ülkeni ve Cloudflare konumunu döndüren 1.1.1.1'e tek bir istek. Hesap, telemetri ve rapor sunucusu yoktur. Raporlar sen paylaşana kadar cihazındaki bir klasörde durur.</p></details>
+  <details><summary><span data-en>Why is the Windows build flagged by SmartScreen?</span><span data-tr>Windows sürümünü SmartScreen neden işaretliyor?</span></summary><p data-en>The file is not code-signed with a paid certificate. Verify the SHA-256 against the release's checksum file, then choose “More info” and “Run anyway”. The full source is on GitHub, and GitHub's own CI builds the binaries from that source.</p><p data-tr>Dosya ücretli bir sertifikayla kod-imzalı değildir. SHA-256'yı sürümün sağlama dosyasıyla doğrula, sonra “Daha fazla bilgi” ve “Yine de çalıştır” seç. Kaynağın tamamı GitHub'dadır ve ikili dosyaları GitHub'ın kendi CI'ı o kaynaktan derler.</p></details>
+  <details><summary><span data-en>How is the score computed?</span><span data-tr>Skor nasıl hesaplanıyor?</span></summary><p data-en>The share of affected sites gives up to 50 points (damped for small scans). Each technique adds a weight, and TLS interception adds the most. Each blocked port adds 2 points. The total is capped at 100. Levels: 0 clean, 1 to 19 light, 20 to 44 moderate, 45 to 69 heavy, 70 and above severe. Every positive site result is tested a second time, and results that do not repeat are dropped.</p><p data-tr>Etkilenen site oranı en fazla 50 puan verir (küçük taramalarda sönümlü). Her teknik bir ağırlık ekler ve en çok HTTPS'in kırılması ekler. Engelli her port 2 puan ekler. Toplam 100 ile sınırlıdır. Seviyeler: 0 temiz, 1-19 hafif, 20-44 orta, 45-69 ağır, 70 ve üstü şiddetli. Pozitif her site sonucu ikinci kez test edilir ve tekrar etmeyen sonuçlar düşer.</p></details>
 </section>
 
 </main>
@@ -133,6 +133,6 @@
   </div>
 </div></footer>
 
-<script src="assets/site.js?v=3.6.128"></script>
+<script src="assets/site.js?v=3.6.129"></script>
 </body>
 </html>

@@ -45,7 +45,7 @@ td a.dl{font-weight:700}
 .faq details{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:10px}
 .faq summary{cursor:pointer;font-weight:700}.faq p{color:var(--mut);margin:10px 0 0}
 footer{padding:40px 0 60px;color:var(--mut);font-size:14px;border-top:1px solid var(--line)}
-.lang{position:absolute;top:18px;right:20px;display:flex;gap:6px}
+.lang{position:absolute;top:18px;right:20px;display:flex;gap:6px;z-index:10}
 .lang button{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:5px 10px;cursor:pointer;font-weight:600}
 .lang button.on{color:var(--fg);border-color:var(--acc)}
 [data-tr]{display:none}html[lang="tr"] [data-en]{display:none}html[lang="tr"] [data-tr]{display:revert}

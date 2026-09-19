@@ -4,7 +4,9 @@
   window.setLang=setLang;
   document.getElementById('lang-en').addEventListener('click',function(){setLang('en')});
   document.getElementById('lang-tr').addEventListener('click',function(){setLang('tr')});
-  try{var s=localStorage.getItem('fs-lang');if(s)setLang(s);else if((navigator.language||'').toLowerCase().startsWith('tr'))setLang('tr');}catch(e){}
+  // language: ?lang=tr or #tr in the URL wins, then the saved choice, then the browser language
+  var q=(location.search.match(/[?&]lang=(en|tr)/)||[])[1]||(location.hash==='#tr'?'tr':location.hash==='#en'?'en':null);
+  if(q)setLang(q);else{try{var s=localStorage.getItem('fs-lang');if(s)setLang(s);else if((navigator.language||'').toLowerCase().startsWith('tr'))setLang('tr');}catch(e){}}
   // highlight the button for this device
   var ua=navigator.userAgent, plat=navigator.platform||"", os=null;
   if(/Android/i.test(ua))os="android"; else if(/Windows/i.test(ua))os="windows";

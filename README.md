@@ -1,204 +1,224 @@
 # filterscope
 
-Measure the **filtering / censorship** behaviour of the network you are on — legitimately, with your own traffic. For digital rights and transparency, in the spirit of EFF and Tor.
+filterscope measures the filtering on the network you are connected to. It uses your own device and your own traffic. It sends requests only to well-known public sites and to public test endpoints. It never requests inappropriate content. The result is a score, the list of techniques the network uses and advice in plain language.
 
-> Run it only **from your own device, with your own traffic**. filterscope uses a **clean allowlist** (well-known news / social / privacy / dev / education sites) — it never touches inappropriate or illegal content. That is a deliberate choice to avoid the controversial-domain problem of global test lists.
+Website and downloads: https://tunnelmoth.github.io/filterscope/
+Current stable version: 3.6.117. License: GPL-3.0-or-later.
 
-**Website & downloads: https://tunnelmoth.github.io/filterscope/** · current stable: **v3.6.117**
-
-Works on **Linux, Windows, macOS and Android**. Single-file binaries on the [releases page](https://github.com/tunnelmoth/filterscope/releases); or `pip install`.
-
-```
-╭───────────────────────────── filtering analysis ─────────────────────────────╮
-│   17/100   █████░░░░░░░░░░░░░░░░░░░░░░░░░   LIGHT   confidence high          │
-│                                                                              │
-│ school shows light filtering (score 17/100). 4 of 279 sites are affected,     │
-│ mostly chat (1/1), vpn-info (1/1), vpn-api (2/5). Techniques: TLS            │
-│ server-name inspection, HTTP block page. The filter is application-layer     │
-│ only; SNI-hiding tunnels and ECH get through.                                │
-│                                                                              │
-│ techniques: SNI-DPI (TLS server-name inspection) · block-page (HTTP block    │
-│ page)                                                                        │
-│ vantage: TR via Cloudflare FRA                                               │
-╰──────────────────────────────────────────────────────────────────────────────╯
-```
+filterscope runs on Windows and Android, and also on Linux and macOS. The engine is one Python package, so the desktop window, the terminal dashboard, the command line and the Android app all give the same result.
 
 ## What it measures
 
-| Probe | How |
+Every scan runs about 16 probe types over 279 sites in 27 categories. A full scan takes roughly 60 s to 90 s on a normal connection, and we expect it to take longer on a network that drops packets, because each dropped connection waits for its timeout.
+
+| Probe | Method |
 |---|---|
-| **DNS tampering / hijack** | System resolver and direct `@8.8.8.8` are compared with DoH as the reference. Only private-IP redirection and NXDOMAIN injection are flagged; a mere IP difference is treated as CDN (low false-positive rate). |
-| **TLS / SNI blocking (DPI)** | TLS to the real IP with the real server name vs. a harmless control name. Reset/timeout only with the real name = SNI-based deep packet inspection. |
-| **In-path RST injection** | Time-to-RST is compared with the TCP round trip. An RST that arrives faster than a round trip was injected by a middlebox, not sent by the server. |
-| **TLS interception (MITM)** | Verified handshakes against the Mozilla CA bundle for four large public sites. A chain signed by a private issuer means the network decrypts HTTPS with its own CA. |
-| **Block page** | Signatures of BTK/5651, FortiGuard, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, GoGuardian, Netsweeper, Smoothwall, Palo Alto, Zscaler, Forcepoint, Barracuda… |
-| **Outbound TCP ports** | Via `portquiz.net` (listens on every port). `timeout` = packets dropped (real block); `refused`/`RST` = the packet got out. |
-| **UDP egress** | STUN binding requests to several servers/ports (indicator for WireGuard / IPsec). |
-| **QUIC / UDP-443** | A QUIC version-negotiation probe (RFC 9000 §6) to Cloudflare and Google — no crypto, unambiguous. |
-| **Encrypted DNS** | Is DoH (Cloudflare, Google, AdGuard) / DoT (Cloudflare, Google, Quad9) itself reachable. |
-| **Port-53 interception** | A plain DNS query is sent to `192.0.2.1` (TEST-NET-1, cannot run a resolver). Any answer proves the network transparently proxies DNS. |
-| **NXDOMAIN hijack** | A random non-existent name under `example.com` must not resolve. |
-| **HTTP transparent proxy** | Filter-appliance headers (`Via`, `X-Squid-*`, BlueCoat, FortiGate, Sophos…) on a neutral plain-HTTP fetch. |
-| **URL keyword filter** | Benign words (vpn, proxy, tor, torrent…) in a query string to `example.com` must be served identically to a control word. |
-| **ECH / encrypted SNI** | Does the site publish `ech` in its HTTPS record? Combined with SNI-DPI detection it infers "this block is bypassable with ECH". |
-| **Throttling** | 4 MB Range downloads from five CDNs (Cloudflare, Google, Akamai, Microsoft, Fastly); a target far below the best one on the same link = selective throttling. |
-| **IPv6 egress**, **SSH egress**, **vantage point** (country / Cloudflare colo) | |
-| **VPN diagnosis** | Are VPN sites/APIs (Proton, Mullvad, Nord, Windscribe, AirVPN) blocked at the SNI layer — explains why an app fails at login, and what to do. |
-| **Tor** | A real `tor` bootstrap to 100 %. |
+| DNS tampering | The system resolver and a direct query to 8.8.8.8 are compared with DNS over HTTPS. Only a private-IP answer or a withheld answer counts. A different public IP is treated as a CDN. |
+| TLS server-name inspection (SNI-DPI) | A TLS handshake to the real IP with the real name, then one with a harmless name. A reset only with the real name means the network reads the ClientHello. |
+| In-path RST injection | The time to the reset is compared with the TCP round trip. A reset that arrives faster than one round trip almost certainly came from a middlebox. |
+| TLS interception | Verified handshakes against the Mozilla CA bundle for 4 large sites. A chain signed by a private issuer means the network decrypts HTTPS. |
+| Block page | Signatures of filter products (FortiGuard, Sophos, Squid, Cisco Umbrella, Lightspeed, Securly, Netsweeper, Palo Alto, Zscaler, BTK/5651 and more). Generic wording counts only on a plain-HTTP answer. |
+| Outbound TCP ports | A TCP connect to portquiz.net on 9 ports. A timeout means dropped packets. A refusal means the packet got out. |
+| UDP egress | STUN binding requests to 4 servers. |
+| QUIC / UDP 443 | A QUIC version-negotiation packet to Cloudflare and Google (RFC 9000, section 6). |
+| Encrypted DNS | DoH to Cloudflare, Google and AdGuard. DoT to Cloudflare, Google and Quad9. |
+| Port-53 interception | A plain DNS query to 192.0.2.1 (TEST-NET-1). Any answer means the network answers DNS for every address. |
+| NXDOMAIN hijack | A random name under example.com must not resolve. |
+| Transparent HTTP proxy | Proxy headers on a plain-HTTP fetch of example.com. |
+| URL keyword filter | Benign words (vpn, proxy, tor, torrent, bypass, unblock) in a query string must be served the same way as a control word. |
+| Throttling | 4 MB downloads from 5 CDNs (Cloudflare, Google, Akamai, Microsoft, Fastly). A target below 25 % of the best one on the same link counts as throttled. This is a rough threshold and a busy CDN edge can trip it once, so a repeat run is worth more than a single result. |
+| ECH | The site publishes ECH in its HTTPS record. Together with SNI-DPI this means the block can be bypassed with a current browser. |
+| IPv6, SSH, vantage point | TCP 443 over IPv6. An SSH banner from github.com. Country and Cloudflare colo from 1.1.1.1. |
+| Tor | A real tor bootstrap to 100 %. This needs a tor binary. |
 
-**Verification**: every positive site result is re-tested once; a result that does not reproduce is marked *transient* and dropped.
+Every positive site result is tested a second time, because a single failed connection is often just a bad moment on the line. A result that does not repeat is marked transient and is not counted.
 
-**Analysis**: a filtering score (0–100, clean → severe), the techniques in use, a vendor signature guess, impact by category, confidence, and a plain-English verdict. Every finding feeds the VPN diagnosis and tunnel/circumvention advice.
+## The verdict
+
+The analysis gives:
+
+- A score from 0 to 100. The share of affected sites gives up to 50 points. Each technique adds a weight. Each blocked port adds 2 points. Levels: 0 clean, 1 to 19 light, 20 to 44 moderate, 45 to 69 heavy, 70 and above severe.
+- The techniques in use, for example SNI-DPI, TLS-MITM, DNS-intercept or throttling.
+- A vendor guess when a filter product leaves a signature.
+- The affected categories, a confidence rating and one paragraph of text.
+- Advice for VPN users and for tunnels. The advice describes what would work on this network. filterscope itself changes nothing.
 
 ## Install
 
-**Windows, no terminal**: download and run `filterscope-<version>-Windows-Installer.exe` from [releases](https://github.com/tunnelmoth/filterscope/releases) — it puts *filterscope* in the Start menu. Press **Scan**, read the verdict, click **Open report**. (Or grab the portable `filterscope-<version>-Windows-Portable.exe`.)
+Windows: download `filterscope-<version>-Windows-Installer.exe` from the releases page and run it. It creates a Start-menu entry. It does not need administrator rights. SmartScreen shows a warning because the file is not code-signed. Choose "More info" and then "Run anyway". The portable file `filterscope-<version>-Windows-Portable.exe` runs without installation.
 
-**Android**: install `filterscope-<version>-Android.apk` from [releases](https://github.com/tunnelmoth/filterscope/releases) (sideload; Android 7+, 64-bit). Same engine, same score, **Open report** / **Share** for the HTML evidence. No Tor test on Android.
+Android: install `filterscope-<version>-Android.apk`. Android 7 or newer, 64-bit. Allow "unknown sources" for your browser once.
 
-**Binary** (no Python needed): from [releases](https://github.com/tunnelmoth/filterscope/releases): `filterscope-<version>-Windows-Installer.exe` (or `-Windows-Portable.exe`), `-Android.apk`, `-Linux-App`, `-macOS-AppleSilicon.app.zip`; the `-Terminal` builds carry the TUI/CLI. Every release opens with a which-file-do-I-need table. Verify with `SHA256SUMS.txt`. Intel Macs: use the Python install below.
+Linux: download `filterscope-<version>-Linux-App`, run `chmod +x` on it and start it.
 
-**Python** (3.10+):
+macOS with Apple silicon: download `filterscope-<version>-macOS-AppleSilicon.app.zip`, unzip it and open it with a right-click the first time. Intel Macs use the Python install.
+
+Python 3.10 or newer, any OS:
 
 ```bash
-pipx install git+https://github.com/tunnelmoth/filterscope     # or: pip install --user .
+pipx install git+https://github.com/tunnelmoth/filterscope
 ```
 
-The Tor test needs a `tor` binary: `apt/pacman/brew install tor`, or on Windows the [Tor Expert Bundle](https://www.torproject.org/download/tor/) (`tor.exe` on PATH, next to the exe, or an installed Tor Browser is found automatically).
+The `-Terminal` files carry the terminal dashboard and the command line. Every release page starts with a table that says which file you need. Verify each download with `SHA256SUMS.txt` from the same release.
 
-## Usage
+The Tor probe needs a `tor` binary. Install it with apt, pacman or brew. On Windows put `tor.exe` from the Tor Expert Bundle next to the program. An installed Tor Browser is found automatically.
+
+## Use
+
+Desktop window:
+
+```
+filterscope gui
+```
+
+Press Scan. Read the gauge and the sentence under it. "Open report" renders the HTML report in the browser. "Save" writes HTML, JSON or a PNG share card. "Sites…" selects categories and adds your own domains. "Check…" asks about one service by name.
+
+Terminal dashboard and command line:
 
 ```bash
-filterscope gui                              # desktop window (also: filterscope-gui / the installer's shortcut)
-filterscope                                  # live TUI: tabs, score, filter, detail, compare, save
-filterscope scan                             # full CLI scan with progress; exit code 2 if interference
-filterscope scan --profile quick             # sites + ports + UDP/QUIC + DNS, no Tor/MITM/proxy probes
-filterscope scan --profile school            # categories a school filter usually touches
-filterscope scan --categories ai,vpn-api     # scope to categories (filterscope categories lists them)
-filterscope scan --domain example.org        # add your own domains (--domains-file too)
+filterscope                                  # terminal dashboard
+filterscope scan                             # full scan, exit code 2 when interference is found
+filterscope scan --profile quick             # sites and ports plus UDP, QUIC, DNS
+filterscope scan --profile school            # the categories a school filter usually touches
+filterscope scan --categories ai,vpn-api     # only these categories
+filterscope scan --domain example.org        # add your own domains, or --domains-file
 filterscope scan --label school --json school.json --html school.html
-filterscope scan --anon-json share.json      # PII-free shareable report
-filterscope scan --format json > r.json      # machine-readable to stdout
-filterscope scan --watch 30                  # re-scan every 30 min, print what changed
-filterscope scan --flagged-only              # only affected sites in the table
-filterscope scan --card card.png --lang tr   # PNG share card; Turkish output
-filterscope report school.json               # re-render a saved JSON (or --html out.html)
-filterscope config set label school          # persistent defaults (timeout, categories, domains, …)
+filterscope scan --anon-json share.json      # report without local identity
+filterscope scan --card card.png --lang tr   # PNG share card, Turkish output
+filterscope scan --format json               # the report on stdout
+filterscope scan --watch 30                  # repeat every 30 min and print the changes
+filterscope report school.json               # render a saved report again, or --html
+filterscope config set label school          # persistent defaults
 ```
 
-### Android
+Terminal dashboard keys: `r` rescan, `t` Tor on or off, `s` save, `/` filter, `f` affected sites only, `c` compare with the previous scan, `d` dark or light, `1` to `5` tabs, `q` quit.
 
-The app is a native (Jetpack Compose) front-end over the same Python engine (Chaquopy). A home-screen widget shows the last score; tapping it opens the app and scans. Pick a label and a profile, press **Scan**; the gauge, verdict, findings, per-site rows (tap for detail), egress probes and history mirror the desktop app. **Open report** renders the HTML report in the browser, **Share** sends it anywhere. Network identity comes from Android's connectivity API (gateway, resolver, SSID when the OS exposes it).
-
-### Desktop window
-
-**Scan** runs the same engine; the gauge and the sentence under it are the verdict. **Open report** renders the HTML evidence report in your browser; **Save ▾** writes HTML, JSON or a PNG share card; **Sites…** picks categories and adds your own domains; **Compare** diffs against the previous stored scan of this network; the *Sites* tab has a filter box, an *affected only* toggle and a detail panel per row. F5 rescans.
-
-**Turkish**: everything is available in Turkish — auto from the system locale, or `--lang tr`, `filterscope config set lang tr`, the EN/TR button in the window.
-
-**Update check**: one request to the GitHub releases API at start; disable with `filterscope config set update_check false`.
-
-**Dark mode & accessibility**: the window follows the OS theme (or *View ▾ → Theme*), has high-contrast palettes and 100–175 % text; the TUI toggles with `d`; the Android app and the HTML report follow the system theme.
-
-**Tray / background**: `filterscope tray` sits in the system tray, re-scans when the network changes and notifies what is blocked; the Windows installer can start it at login.
-
-### TUI keys
-
-`r` rescan · `t` toggle Tor · `s` save JSON+HTML · `/` filter sites · `f` affected only · `c` compare with previous scan · `1-5` tabs · `q` quit
-
-### Is Valorant blocked here? Ask by name
+### Ask about one service
 
 ```bash
-filterscope check valorant            # OK / PARTIAL / BLOCKED / THROTTLED, with reasons
-filterscope check discord roblox yt   # several at once; --json for scripts
-filterscope services                  # the 113 profiles it knows; --template writes ~/.filterscope/services.json for your own
+filterscope check valorant
+filterscope check discord roblox youtube
+filterscope services
+filterscope services --template
 ```
 
-A profile is the set of endpoints the service actually needs (auth/API, CDN, game and chat servers, raw ports), the TCP ports it uses, UDP egress, and a real download from the service's own CDN measured against a Cloudflare baseline. The window has a **Check…** dialog and the Android app a **Check** tab.
+A service profile lists the endpoints the service needs: the website, the login or API servers, the CDN, the game or chat servers. It also lists the TCP ports the service uses. The check measures UDP egress and downloads a file from the service's own CDN, and it compares that download with a Cloudflare baseline. The verdict is OK, PARTIAL, BLOCKED or THROTTLED, with the reasons. The catalogue has 113 profiles, and we expect some of the game endpoints to change over time because vendors move their servers. `services --template` writes `~/.filterscope/services.json`. Edit that file to add your own profiles.
 
-### Evidence: two networks, one diff
+Hosts that do not speak HTTPS on port 443 (for example WhatsApp on 5222, Supercell on 9339, Riot chat on 5223) get a plain TCP connect instead of a TLS probe. UDP game ports cannot be verified without the game. The tool reports generic UDP egress for them.
+
+### Evidence
+
+Run the same scan on two networks and compare the reports:
 
 ```bash
 filterscope scan --label school --json school.json
-filterscope scan --label mobile --json mobile.json    # after switching to mobile data
+filterscope scan --label mobile --json mobile.json
 filterscope compare school.json mobile.json
 ```
 
-Anything blocked on one network but open on the other is filtering **specific to that network**.
+Anything blocked on one network and open on the other is probably filtering specific to that network. A site that is down at that moment looks the same, so a second run a few minutes later is a good habit.
 
-### Evidence over time
+Every scan appends one record to `~/.filterscope/history.jsonl` and stores the full report under `~/.filterscope/reports/`.
 
-Every scan appends a record to `~/.filterscope/history.jsonl` and stores the full report under `~/.filterscope/reports/`.
+```bash
+filterscope history                          # timeline per network, with new and lifted blocks
+filterscope history --html timeline.html
+filterscope diff                             # the last two stored scans of this network
+```
 
-```cron
+A cron entry for a time series:
+
+```
 */30 * * * * filterscope scan --no-tor --label school --format summary >> ~/.filterscope/run.log 2>&1
 ```
 
-```bash
-filterscope history                          # timeline + "new block / lifted" per network, with scores
-filterscope history --html timeline.html     # sparkline timeline
-filterscope diff                             # last two stored scans of this network
-```
-
-### Does my VPN work here?
+### Background mode
 
 ```bash
-filterscope wg --config /etc/wireguard/wg0.conf      # real WireGuard handshake (Noise_IKpsk2) to YOUR server
+filterscope tray
 ```
 
-### Bypass with Cloudflare WARP (Linux)
+The program sits in the system tray and reads the network fingerprint (gateway, resolver, SSID) every 30 s. When the network changes it runs a quick scan and shows a notification with the blocked sites. The menu offers a scan, one-click service checks and the window. The Windows installer can start this mode at login. The installer can also add "Measure this network with filterscope" to the desktop right-click menu.
+
+### Language, theme, text size
+
+The interface is available in English and Turkish. The language follows the system locale. `--lang tr`, `filterscope config set lang tr` or the EN/TR button in the window override it.
+
+The window follows the OS theme. "View" offers Light, Dark, a high-contrast palette and text sizes from 100 % to 175 %. The terminal dashboard toggles with `d`. The Android app and the HTML report follow the system theme.
+
+### Update check
+
+At start the program makes one request to the GitHub releases API. A newer version shows a bar in the window, a toast in the terminal dashboard, one line in the command line and a tap-to-download bar on Android. `filterscope config set update_check false` turns this off.
+
+### WireGuard test
 
 ```bash
-filterscope warp test          # reachable on this network?
-filterscope warp up            # WireGuard tunnel (sudo); automatic port search if no data flows
-filterscope warp masque up     # official client in MASQUE/HTTP3 mode when WireGuard is throttled
-filterscope warp status / down
+filterscope wg --config /etc/wireguard/wg0.conf
 ```
 
-On Windows and macOS use the official 1.1.1.1 app and pick MASQUE in its settings.
+This sends a real WireGuard handshake (Noise_IKpsk2) to your own server. A response means WireGuard works on this network.
 
-## Interpreting results
+### Cloudflare WARP (Linux only)
 
-- **SNI-DPI** — the network reads the server name in the TLS ClientHello and resets specific sites. If the note says *in-path injection*, the RST came from a middlebox, not the server.
-- **TLS-MITM** — HTTPS is decrypted by the network with its own CA. Assume every page and login is readable by the operator.
-- **HIJACK-blockpage** — DNS answers with a private/local IP (a block-page server).
-- **DNS-BLOCK** — the local resolver returns nothing while DoH resolves.
-- **INTERCEPTED** (port 53) — the network answers DNS on behalf of every address; changing your resolver to 8.8.8.8 is ignored.
-- **NXDOMAIN-HIJACK** — non-existent names resolve (search redirect / ad injection).
-- **BLOCKED** on DoH/DoT — encrypted DNS is blocked; apps using it (Firefox DoH, Android Private DNS) fail.
-- **BLOCKED** on a port / QUIC / UDP — packets to that port are dropped.
-- **PROXY** / **URL-KEYWORD-FILTER** — a transparent HTTP proxy or filter appliance is rewriting plain HTTP.
-- **Score**: 0 clean · 1–19 light · 20–44 moderate · 45–69 heavy · 70+ severe.
+```bash
+filterscope warp test
+filterscope warp up
+filterscope warp masque up
+filterscope warp status
+filterscope warp down
+```
 
-To argue that filtering is improper: keep the timestamped JSON, run the same scan on **a different network** and show the diff. The HTML report is self-contained and printable.
+This installs Cloudflare WARP without AUR and brings the tunnel up with sudo. Downloads are verified against the release checksums and the apt signature chain. On every other platform use the official 1.1.1.1 app and choose MASQUE in its connection settings.
+
+## How to read the results
+
+- SNI-DPI: the network reads the server name in the TLS ClientHello and resets some sites. "In-path injection" in the note means the reset came from a middlebox.
+- TLS-MITM: the network decrypts HTTPS with its own certificate. Every page and every login is readable by the operator.
+- HIJACK-blockpage: DNS answers with a private IP.
+- DNS-BLOCK: the local resolver returns nothing while DoH resolves.
+- INTERCEPTED: the network answers port-53 DNS for every address. A change of resolver to 8.8.8.8 has no effect.
+- NXDOMAIN-HIJACK: names that do not exist resolve.
+- BLOCKED on DoH or DoT: encrypted DNS is blocked. Firefox DoH and Android Private DNS fail.
+- BLOCKED on a port, QUIC or UDP: packets to that port are dropped.
+- PROXY or URL-KEYWORD-FILTER: a transparent proxy rewrites plain HTTP.
+- THROTTLED: one CDN gets less than 25 % of the speed of the others.
+
+## Android
+
+The app is a Jetpack Compose front-end over the same Python engine (Chaquopy, Python 3.13, arm64-v8a and x86_64). It has the scan, the gauge, the findings, the per-site rows, the egress probes, the history, the service check tab, the share card and "Open report". A home-screen widget shows the last score. A tap on the widget opens the app and starts a scan. The network identity comes from the Android connectivity API. There is no Tor probe on Android.
+
+## Configuration and data
+
+`~/.filterscope/config.json` holds the defaults: `label`, `timeout`, `tor`, `categories`, `domains`, `steps_off`, `workers`, `lang`, `theme`, `high_contrast`, `font_scale`, `update_check`, `verify`, `save_reports`. `filterscope config` prints them. `filterscope config set KEY VALUE` changes one. On Android the same files live in the app's private storage.
 
 ## JSON schema
 
-`schema: 3`. Top level: `ts`, `version`, `net` (id/label/ssid/gateway/resolver/os), `geo`, `sites{domain: {cat, dns, sni, blockpage, ech, ms, confirmed?, transient?}}`, `ports`, `udp`, `udp_detail`, `quic`, `quic_detail`, `ipv6`, `dns_encrypted`, `dns_intercept`, `nxdomain`, `http_proxy`, `url_filter`, `tls_intercept`, `ssh`, `tor`, `speed`, `timings`, `flagged[]`, `analysis{score, level, techniques, vendor, categories, confidence, summary}`. The anonymized variant drops `net.*` except id/label, the public IP, resolver answers and proxy headers.
+`schema` is 3. Top-level keys: `ts`, `version`, `lang`, `net` (id, label, ssid, gateway, resolver, os), `geo`, `sites`, `ports`, `udp`, `udp_detail`, `quic`, `quic_detail`, `ipv6`, `dns_encrypted`, `dns_intercept`, `nxdomain`, `http_proxy`, `url_filter`, `tls_intercept`, `throttle`, `ssh`, `tor`, `timings`, `flagged`, `analysis`. Each site has `cat`, `dns`, `sni`, `blockpage`, `ech`, `ms` and, after the second test, `confirmed` or `transient`. `analysis` has `score`, `level`, `techniques`, `vendor`, `categories`, `confidence` and `summary`. The anonymized report drops the network identity except id and label, the public IP, the resolver answers and the proxy headers.
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest                                  # offline unit tests
-pyinstaller packaging/filterscope.spec  # single-file binary → dist/
-cd android && ./gradlew assembleDebug   # Android APK (JDK 17, Android SDK 34, python3.13 on PATH)
-# landing page: docs/index.html (GitHub Pages: Settings → Pages → main /docs)
+pytest
+pyinstaller packaging/filterscope.spec        # terminal binary
+pyinstaller packaging/filterscope-gui.spec    # windowed binary
+cd android && ./gradlew assembleDebug         # Android APK: JDK 17, Android SDK 34, python3.13 on PATH
 ```
 
-CI runs the tests on Linux, Windows and macOS; a `v*` tag builds and publishes the binaries.
+The source layout: `filterscope/core.py` holds the probes, `scan.py` the scheduler, `analysis.py` the score, `services.py` the service profiles, `render.py` the terminal output, `htmlreport.py` the HTML report, `card.py` the share card, `i18n.py` the strings, `gui.py` the window, `tui.py` the dashboard, `tray.py` the background mode and `cli.py` the command line. The landing page is in `docs/`. The Android project is in `android/`.
 
-## Roadmap
+CI runs the tests on all three desktop platforms. A tag that starts with `v` builds the binaries, the installer and the APK, and it then publishes the release together with `SHA256SUMS.txt`. Actions are pinned to commit hashes.
 
-- [x] Evidence mode: time-series + change tracking, stored reports, diff, watch
-- [x] Network comparison, anonymized reports, HTML report with score gauge
-- [x] ECH detection + bypass inference, real WireGuard handshake test
-- [x] Encrypted DNS, DNS interception, NXDOMAIN hijack, QUIC, transparent proxy, URL keyword filter, RST injection timing, TLS interception
-- [x] Analysis engine: score, techniques, vendor signature, verification pass
-- [x] Windows / macOS, single-file binaries
-- [ ] DoQ (DNS over QUIC) and HTTP/3 page fetch
-- [ ] Opt-in anonymous aggregate report server
+## Security
+
+See `SECURITY.md`. In short: two TLS handshakes per site run without certificate verification on purpose, because they only observe a reset or read the presented certificate. All other TLS verifies against the Mozilla CA bundle. Binaries are not code-signed. The Android signing key lives in the repository so that sideloaded updates install over each other. It proves nothing about the author.
+
+## Status
+
+Done: the probes above with the analysis and the verification pass. The four front-ends. The service profiles and the share card. The tray mode. A Turkish interface with dark and high-contrast themes. The landing page and the CI release.
+
+Open: a probe that locates the hop where a reset originates (this needs raw sockets), a real ECH handshake, DNS over QUIC and HTTP/3 fetches, a two-network comparison wizard, PDF export and an opt-in aggregate map.
 
 ## License
 
-GPL-3.0-or-later. Free software — use it, study it, modify it, share it.
+GPL-3.0-or-later.

@@ -335,24 +335,24 @@ class App:
     def _build_about(self):
         f = ttk.Frame(self.nb, padding=16)
         self.nb.add(f, text=t("ui.tab.about"))
-        txt = (f"filterscope {__version__} — GPL-3.0 — github.com/tunnelmoth/filterscope\n\n"
-               "Measures filtering / censorship on the network you are connected to, legitimately: "
-               "only your own traffic, only a clean allowlist of well-known sites.\n\n"
+        txt = (f"filterscope {__version__}. GPL-3.0. github.com/tunnelmoth/filterscope\n\n"
+               "filterscope measures filtering and censorship on the network you are connected to. It uses only your own "
+               "traffic and a clean allowlist of well-known sites.\n\n"
                "Verdicts\n"
-               "  SNI-DPI            the TLS server name is inspected; the site is reset only with its real name\n"
-               "  TLS-MITM           HTTPS is decrypted by the network with its own certificate authority\n"
-               "  HIJACK-blockpage   DNS answers with a private IP (block-page server)\n"
-               "  DNS-BLOCK          the resolver withholds the answer while DoH resolves\n"
-               "  INTERCEPTED        port-53 DNS is transparently proxied; 'use 8.8.8.8' is ignored\n"
-               "  BLOCKED            packets to that port / protocol are dropped\n"
-               "  ?                  undecided (no reference, or a positive that did not reproduce)\n\n"
-               "Score: share of affected sites (max 50) + a weight per technique + 2 per blocked port.\n"
-               "  0 clean · 1-19 light · 20-44 moderate · 45-69 heavy · 70+ severe\n\n"
-               "Verification: every positive site result is re-tested once; non-reproducible ones are dropped.\n\n"
+               "  SNI-DPI            the TLS server name is inspected. The site is reset only with its real name.\n"
+               "  TLS-MITM           the network decrypts HTTPS with its own certificate authority.\n"
+               "  HIJACK-blockpage   DNS answers with a private IP (a block-page server).\n"
+               "  DNS-BLOCK          the resolver withholds the answer while DoH resolves.\n"
+               "  INTERCEPTED        port-53 DNS is proxied. A change to 8.8.8.8 has no effect.\n"
+               "  BLOCKED            packets to that port or protocol are dropped.\n"
+               "  ?                  undecided. No reference, or a positive that did not repeat.\n\n"
+               "Score: the share of affected sites (up to 50) plus a weight per technique plus 2 per blocked port.\n"
+               "  0 clean, 1-19 light, 20-44 moderate, 45-69 heavy, 70 and above severe.\n\n"
+               "Verification: every positive site result is tested a second time. Results that do not repeat are dropped.\n\n"
                "Evidence: scan here, scan again on mobile data, then compare the two saved JSON files "
-               "(filterscope compare A.json B.json) — anything blocked only here is filtering specific to this network.\n\n"
+               "(filterscope compare A.json B.json). Anything blocked only here is filtering specific to this network.\n\n"
                f"Data folder: {config.DIR}\n"
-               "The Tor test needs a tor / tor.exe binary (Tor Expert Bundle) on PATH or next to this program.")
+               "The Tor test needs a tor or tor.exe binary (Tor Expert Bundle) on PATH or next to this program.")
         w = tk.Text(f, bg=BG, fg=FG, wrap="word", borderwidth=0, highlightthickness=0, font="TkDefaultFont")
         w.insert("1.0", txt)
         w.configure(state="disabled")

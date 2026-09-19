@@ -159,7 +159,7 @@ def test_analysis_mitm_dominates():
     an = analysis.analyze(r)
     assert an["techniques"][0] == "TLS-MITM"
     assert an["vendor"] == "Fortinet FortiGate"
-    assert "decrypted" in an["summary"]
+    assert "decrypts" in an["summary"]
     assert "tls-mitm github.com" in core.flagged(r)
 
 

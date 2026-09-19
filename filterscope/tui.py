@@ -31,28 +31,28 @@ EGRESS_ROWS = ["UDP egress (STUN)", "QUIC/UDP-443", "IPv6", "SSH banner",
                "throttling", "Tor bootstrap"]
 
 HELP = """\
-[b]filterscope[/b] measures the filtering behaviour of the network you are on, using only your
+[b]filterscope[/b] measures the filtering behaviour of the network you are on. It uses only your
 own traffic and a clean allowlist of well-known sites.
 
 [b]Keys[/b]
-  r  rescan                 t  toggle the Tor test (applies on next rescan)
-  s  save JSON + HTML       c  compare with the previous stored scan of this network
+  r  rescan                 t  Tor test on or off (applies on the next rescan)
+  s  save JSON and HTML     c  compare with the previous stored scan of this network
   /  filter the site table  f  show only affected sites
-  1-5  switch tabs          q  quit
+  d  dark or light theme    1 to 5  switch tabs        q  quit
 
 [b]Verdicts[/b]
-  [red]SNI-DPI[/red]           TLS server name is inspected; the site is reset only with its real name
-  [red]HIJACK-blockpage[/red]  DNS answers with a private IP (block-page server)
-  [red]DNS-BLOCK[/red]         resolver withholds the answer while DoH resolves
-  [red]BLOCKPAGE[/red]         HTTP fetch returns a known filter page
-  [red]TLS-MITM[/red]          HTTPS is decrypted by the network with its own CA
-  [red]INTERCEPTED[/red]       port-53 DNS is transparently proxied; "use 8.8.8.8" is ignored
-  [red]BLOCKED[/red]           packets to that port/protocol are dropped
-  [yellow]?[/yellow]                 undecided (no reference, or a positive that did not reproduce)
+  [red]SNI-DPI[/red]           the TLS server name is inspected. The site is reset only with its real name.
+  [red]HIJACK-blockpage[/red]  DNS answers with a private IP (a block-page server).
+  [red]DNS-BLOCK[/red]         the resolver withholds the answer while DoH resolves.
+  [red]BLOCKPAGE[/red]         the HTTP fetch returns a known filter page.
+  [red]TLS-MITM[/red]          the network decrypts HTTPS with its own certificate authority.
+  [red]INTERCEPTED[/red]       port-53 DNS is proxied. A change to 8.8.8.8 has no effect.
+  [red]BLOCKED[/red]           packets to that port or protocol are dropped.
+  [yellow]?[/yellow]                 undecided. No reference, or a positive that did not repeat.
 
-[b]Score[/b]  share of affected sites (max 50) + a weight per technique + 2 per blocked port.
-         0 clean · 1-19 light · 20-44 moderate · 45-69 heavy · 70+ severe
-[b]Verification[/b]  every positive site result is re-tested once; non-reproducible ones are dropped.
+[b]Score[/b]  the share of affected sites (up to 50) plus a weight per technique plus 2 per blocked port.
+         0 clean, 1-19 light, 20-44 moderate, 45-69 heavy, 70 and above severe.
+[b]Verification[/b]  every positive site result is tested a second time. Results that do not repeat are dropped.
 
 Evidence: run the same scan on another network (mobile data) and use [i]compare[/i].
 """

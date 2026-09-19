@@ -4,13 +4,13 @@
 
 ### Dark mode & accessibility
 - Desktop window: **dark theme** (follows the OS, or forced), **high-contrast** palettes (light and
-  dark), **text size** 100–175 % — *View ▾* menu, persisted (`theme`, `high_contrast`, `font_scale`).
+  dark), **text size** 100–175 %. *View ▾* menu, persisted (`theme`, `high_contrast`, `font_scale`).
 - TUI: `d` toggles dark/light; follows the OS theme at start. Android: proper dark palette for
   cards, rows and the gauge; DayNight system theme.
 
 ### System tray / background mode
 - `filterscope tray` (or `filterscope-gui --tray`): sits in the tray, detects **network changes**
-  (gateway/resolver/SSID) and runs a quick scan automatically, then notifies “*wifi: blocked here —
+  (gateway/resolver/SSID) and runs a quick scan automatically, then notifies “*wifi: blocked here -
   discord.com, roblox.com…*”. Menu: Open window · Scan now · Check ▸ (eight one-click services) ·
   Auto-scan on/off · Quit. Windows installer option: **start in the tray at login**.
 
@@ -25,7 +25,7 @@
   Docker, VS Code, Cursor/Replit, Linux mirrors, BBC/DW/Reuters, Turkish independent news, Ekşi
   Sözlük, Wattpad, Imgur/Giphy, Speedtest… Every hostname resolved at authoring time.
 - **User profiles**: `filterscope services --template` writes `~/.filterscope/services.json`; edit it
-  and `filterscope check myschoolportal` — same shape as the built-in profiles (`tcp:PORT` hosts,
+  and `filterscope check myschoolportal`. same shape as the built-in profiles (`tcp:PORT` hosts,
   ports, download target).
 
 ## 3.5.115 — 2026-09-19 · **stable**
@@ -48,11 +48,11 @@
 ### Throttling detection
 - New `throttle` step: 4 MB Range downloads from five CDNs (Cloudflare, Google, Akamai/Steam,
   Microsoft, Fastly/Debian). A target below 25 % of the best one on the same link is reported as
-  **THROTTLED** — the sneaky filter that blocks nothing but makes video and games unusable. Shown in
+  **THROTTLED**. the sneaky filter that blocks nothing but makes video and games unusable. Shown in
   every UI, counted in the score (`throttling` technique). Off in the `quick` and `vpn` profiles.
 
 ### Turkish
-- Full Turkish UI: desktop window, TUI, CLI headings, HTML report, share card and Android — including
+- Full Turkish UI: desktop window, TUI, CLI headings, HTML report, share card and Android. including
   the verdict sentence and all advice. Auto from the system locale; `--lang tr|en`, config `lang`, the
   EN/TR button in the window, `FILTERSCOPE_LANG`.
 
@@ -66,7 +66,7 @@
   update_check false` to disable.
 
 ### Shell integration
-- Windows installer option: **“Measure this network with filterscope”** in the desktop right-click
+- Windows installer option: **"Measure this network with filterscope"** in the desktop right-click
   menu (opens the app and scans immediately; `filterscope-gui --autoscan`).
 - Android **home-screen widget**: last score and level; tap = open and scan.
 
@@ -109,7 +109,7 @@ monotonically increasing build number (100 + commit count at tag time).
 - `filterscope warp`: the wgcf binary is verified against the release's `checksums.txt`; the WARP
   `.deb` is verified through the apt chain (`Release` signature via `gpgv` when available →
   `Packages` SHA256 → `.deb` SHA256). Mismatch aborts the install.
-- User-supplied labels are sanitized before they become file names (TUI/GUI/Android) — a label like
+- User-supplied labels are sanitized before they become file names (TUI/GUI/Android). a label like
   `../x` could previously write a report outside the chosen folder.
 - Network-derived strings (domains, SSID, resolver, probe labels) are escaped before reaching the
   rich console renderer (markup injection).
@@ -123,19 +123,19 @@ monotonically increasing build number (100 + commit count at tag time).
 ## 3.2.0 — 2026-09-18
 
 ### Android app
-- `filterscope-android-<version>.apk` — native Jetpack Compose UI over the same Python engine
+- `filterscope-android-<version>.apk`. native Jetpack Compose UI over the same Python engine
   (Chaquopy, Python 3.13, arm64-v8a + x86_64). Scan / Stop, label + profile, live progress, score
   gauge, verdict, technique chips, findings + advice, sites (filter, affected-only, tap for detail),
   egress probes, history, compare with previous, **Open report** / **Share** (HTML via FileProvider).
 - Network identity from Android's connectivity API (`sysinfo.HINTS`), history under the app's
   private files dir. No Tor probe on Android.
 - `android/` Gradle project; CI builds a release-signed APK on every tag (self-signed key in the
-  repo — trust the GitHub release + SHA256SUMS, not the key).
+  repo. trust the GitHub release + SHA256SUMS, not the key).
 
 ## 3.1.0 — 2026-09-18
 
 ### Desktop app (no terminal needed)
-- **`filterscope-gui`** — a Tkinter/ttk window: Scan button, score gauge, plain-English verdict,
+- **`filterscope-gui`**. a Tkinter/ttk window: Scan button, score gauge, plain-English verdict,
   technique badges, tabs for findings & advice / sites (filter, affected-only, per-row detail) /
   egress & DNS / history, one-click **Open report** (HTML in the browser), Save HTML/JSON,
   Compare with the previous scan, F5 to rescan. Same engine, same history as the CLI/TUI.
@@ -156,7 +156,7 @@ detection, and a new TUI.
 ### Analysis engine
 - **Filtering score 0–100** with a level (clean / light / moderate / heavy / severe): share of affected
   sites + a weight per technique + blocked ports.
-- **Technique badges** — SNI-DPI, RST-injection, TLS-MITM, DNS-hijack, DNS-block, DNS-intercept,
+- **Technique badges**. SNI-DPI, RST-injection, TLS-MITM, DNS-hijack, DNS-block, DNS-intercept,
   encrypted-DNS-block, NXDOMAIN-hijack, block-page, HTTP-proxy, URL-keyword-filter, port-filter,
   UDP-block, QUIC-block, Tor-block, SSH-block, IPv6-block.
 - **Vendor signature** from block pages, proxy headers and MITM issuers (FortiGate, Sophos, Squid,
@@ -170,12 +170,12 @@ detection, and a new TUI.
   reproduce are marked *transient* and dropped from findings. Confirmed ones say so.
 
 ### New probes
-- **TLS interception / SSL inspection** — verified handshakes against the Mozilla CA bundle for four
+- **TLS interception / SSL inspection**. verified handshakes against the Mozilla CA bundle for four
   large public sites; a chain signed by a private issuer = the network decrypts HTTPS.
-- **NXDOMAIN hijack** — random non-existent name under example.com must not resolve.
-- **URL keyword filter** — benign words (vpn, proxy, tor, torrent, bypass, unblock) in a query string
+- **NXDOMAIN hijack**. random non-existent name under example.com must not resolve.
+- **URL keyword filter**. benign words (vpn, proxy, tor, torrent, bypass, unblock) in a query string
   must be served identically to a control word.
-- **Vantage point** — public country / Cloudflare colo (IP stripped from anonymized reports).
+- **Vantage point**. public country / Cloudflare colo (IP stripped from anonymized reports).
 
 ### Scanner
 - One thread pool, every probe group in flight at once; Tor runs in its own thread from second zero.

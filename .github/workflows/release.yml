@@ -138,15 +138,15 @@ jobs:
             echo
             echo "| You are on | Download | Notes |"
             echo "|---|---|---|"
-            echo "| **Windows** | \`filterscope-$v-Windows-Installer.exe\` | Recommended. Start-menu shortcut, no admin. SmartScreen: *More info → Run anyway* (unsigned). |"
+            echo "| **Windows** | \`filterscope-$v-Windows-Installer.exe\` | Recommended. Start-menu shortcut, no administrator rights. SmartScreen warns because the file is not signed. Choose More info, then Run anyway. |"
             echo "| Windows, no install | \`filterscope-$v-Windows-Portable.exe\` | Single file, double-click. |"
             echo "| Windows, terminal | \`filterscope-$v-Windows-Terminal.exe\` | TUI + CLI (scan, compare, history…). |"
-            echo "| **Android** | \`filterscope-$v-Android.apk\` | Android 7+, 64-bit. Allow unknown sources once. |"
-            echo "| **Linux** | \`filterscope-$v-Linux-App\` | chmod +x, run. Terminal build: \`…-Linux-Terminal\`. |"
-            echo "| **macOS** (Apple silicon) | \`filterscope-$v-macOS-AppleSilicon.app.zip\` | Unzip, right-click → Open the first time. Intel Macs: pip below. |"
+            echo "| **Android** | \`filterscope-$v-Android.apk\` | Android 7 or newer, 64-bit. Allow unknown sources once. |"
+            echo "| **Linux** | \`filterscope-$v-Linux-App\` | Run chmod +x, then start it. Terminal build: \`…-Linux-Terminal\`. |"
+            echo "| **macOS** (Apple silicon) | \`filterscope-$v-macOS-AppleSilicon.app.zip\` | Unzip it. Open it with a right-click the first time. Intel Macs use pip (below). |"
             echo "| Python 3.10+ (any OS) | \`filterscope-$v-py3-none-any.whl\` | pip install the file, or pipx install git+https://github.com/tunnelmoth/filterscope |"
             echo
-            echo "Verify: compare the file's SHA-256 with \`SHA256SUMS.txt\`. Website: https://tunnelmoth.github.io/filterscope/"
+            echo "Verify each file: compare its SHA-256 with \`SHA256SUMS.txt\`. Website: https://tunnelmoth.github.io/filterscope/"
             echo
             echo "## Changes"
             echo

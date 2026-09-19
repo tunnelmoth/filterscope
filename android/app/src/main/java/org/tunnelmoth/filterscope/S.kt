@@ -12,17 +12,17 @@ object S {
     val findings get() = p("findings", "bulgular"); val comparePrev get() = p("Compare with previous", "Öncekiyle karşılaştır")
     val noFindings get() = p("no findings yet", "henüz bulgu yok"); val filter get() = p("filter", "filtre"); val affectedOnly get() = p("affected only", "yalnız etkilenenler")
     val shown get() = p("shown", "gösteriliyor"); val affected get() = p("affected", "etkilenmiş"); val pending get() = p("pending", "bekliyor")
-    val noProbes get() = p("no probes yet", "henüz sonda yok"); val noHistory get() = p("no history yet — run a scan", "henüz geçmiş yok — bir tarama yap")
+    val noProbes get() = p("no probes yet", "henüz sonda yok"); val noHistory get() = p("no history yet. Run a scan.", "henüz geçmiş yok. Bir tarama yap.")
     val scanning get() = p("scanning…", "taranıyor…"); val pressScan get() = p("press Scan", "Tara'ya bas"); val ready get() = p("ready", "hazır")
     val intro get() = p("Measures the filtering behaviour of this network with your own traffic and a clean allowlist of well-known sites.",
         "Bu ağın filtreleme davranışını kendi trafiğinle ve temiz, tanınmış site listesiyle ölçer.")
-    fun verdict(level: String, n: Int, conf: String) = p("${levelName(level).uppercase()} filtering — $n signals — confidence $conf",
-        "${levelName(level).uppercase(java.util.Locale("tr"))} filtreleme — $n sinyal — güven $conf")
+    fun verdict(level: String, n: Int, conf: String) = p("${levelName(level).uppercase()} filtering · $n signals · confidence $conf",
+        "${levelName(level).uppercase(java.util.Locale("tr"))} filtreleme · $n sinyal · güven $conf")
     fun levelName(l: String) = if (!tr) l else mapOf("clean" to "temiz", "light" to "hafif", "moderate" to "orta", "heavy" to "ağır", "severe" to "şiddetli")[l] ?: l
-    fun done(s: Int, n: Int) = p("done in ${s}s — $n signals", "$s s'de bitti — $n sinyal")
+    fun done(s: Int, n: Int) = p("done in $s s, $n signals", "$s s'de bitti, $n sinyal")
     fun probing(a: Int, b: Int) = p("probing $a/$b", "sondalanıyor $a/$b")
     fun recheck(n: Int) = p("re-checking $n positives…", "$n pozitif yeniden kontrol ediliyor…")
-    fun update(v: String) = p("v$v available — tap to download", "v$v çıktı — indirmek için dokun")
+    fun update(v: String) = p("v$v is available. Tap to download.", "v$v çıktı. İndirmek için dokun.")
     val vendor get() = p("vendor signature", "üretici imzası"); val score get() = p("score", "skor"); val blocks get() = p("blocks", "engel")
     val noChange get() = p("no change", "değişiklik yok"); val stopped get() = p("stopped", "durduruldu"); val failed get() = p("failed", "başarısız")
     val noEarlier get() = p("no earlier stored scan of this network", "bu ağın daha eski kayıtlı taraması yok")

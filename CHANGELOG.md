@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.6.126 — 2026-09-19 · **stable**
+
+### Text
+- All user-facing text follows one register now: short sentences, one name per concept, no dash
+  asides, estimates marked as estimates. This covers the landing page (English and Turkish), the
+  verdict and advice strings in every front-end, the About and help screens, SECURITY.md, the
+  changelog and the release notes.
+- README rewritten in the same register with the current feature set.
+- Landing page: the artwork sits in its own column and no longer overlaps the text on wide
+  screens. Screenshots refreshed from this version in dark mode.
+
 ## 3.6.117 — 2026-09-19 · **stable**
 
 ### Dark mode & accessibility

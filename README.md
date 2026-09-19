@@ -3,7 +3,7 @@
 filterscope measures the filtering on the network you are connected to. It uses your own device and your own traffic. It sends requests only to well-known public sites and to public test endpoints. It never requests inappropriate content. The result is a score, the list of techniques the network uses and advice in plain language.
 
 Website and downloads: https://tunnelmoth.github.io/filterscope/
-Current stable version: 3.6.117. License: GPL-3.0-or-later.
+Current stable version: 3.6.126. License: GPL-3.0-or-later.
 
 filterscope runs on Windows and Android, and also on Linux and macOS. The engine is one Python package, so the desktop window, the terminal dashboard, the command line and the Android app all give the same result.
 
